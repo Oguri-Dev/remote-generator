@@ -1,0 +1,31 @@
+# Binarios de Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+generador
+generador.exe
+
+# Test binaries
+*.test
+
+# Output del compilador
+*.out
+
+# Go workspace file
+go.work.sum
+
+# Dependencias
+vendor/
+
+# Archivos de IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Variables de entorno
+.env
+.env.local
