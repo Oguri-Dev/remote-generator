@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"generador/broker"
@@ -42,10 +44,16 @@ func main() {
 	// ⬅️⬅️ 1) Broadcaster para /mqtt/sequence_state (progresos)
 	controllers.SetBroadcaster(hub.BroadcastText)
 
-	// ⬅️⬅️ 2) (opcional) Mensajes entrantes por WS -> publicar a MQTT
+	// ⬅️⬅️ 2) Mensajes entrantes por WS -> publicar a MQTT con topic dinámico
 	hub.OnClientMessage = func(msg []byte) {
-		// topic de comandos (ajústalo si lo guardas en Mongo)
-		broker.Publish("generador/comando", msg)
+		cfg := config.Get()
+		topic := cfg.Topic
+		if topic == "" {
+			topic = "generador/comando" // fallback
+		}
+		if err := broker.Publish(topic, msg); err != nil {
+			log.Printf("❌ Error publicando desde WS: %v", err)
+		}
 	}
 
 	// --- MQTT -> WS (reenvío con {topic, message})
@@ -92,8 +100,39 @@ func main() {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+
+	// --- Graceful Shutdown ---
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("\n🛑 Señal de cierre recibida, apagando servidor...")
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// Cerrar servidor HTTP
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Error en HTTP shutdown: %v", err)
+		}
+
+		// Desconectar MQTT
+		broker.Disconnect()
+
+		// Cerrar MongoDB
+		if err := store.Close(shutdownCtx); err != nil {
+			log.Printf("Error cerrando MongoDB: %v", err)
+		}
+
+		log.Println("✅ Servidor cerrado correctamente")
+		os.Exit(0)
+	}()
+
 	log.Println("HTTP escuchando en", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }
 
 func envOr(k, def string) string {

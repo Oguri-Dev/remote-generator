@@ -40,6 +40,7 @@ go run main.go
 ```
 
 Variables de entorno opcionales:
+
 ```bash
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB=generator
@@ -88,15 +89,18 @@ La configuración se almacena en MongoDB con el siguiente esquema:
 ## 🎯 Funcionalidades
 
 1. **Control de Generador:**
+
    - Encendido/apagado de generador principal
    - Monitoreo de estado en tiempo real
 
 2. **Control de Equipamiento:**
+
    - Rack de Monitoreo
    - Módulo 1 y Módulo 2
    - Reinicio individual o completo
 
 3. **Secuencias Automáticas:**
+
    - Arranque ordenado con delays configurables
    - Notificación de progreso vía WebSocket
 
@@ -108,6 +112,7 @@ La configuración se almacena en MongoDB con el siguiente esquema:
 ## 🛠️ Tecnologías
 
 ### Backend
+
 - [Go 1.21+](https://go.dev/)
 - [Gorilla Mux](https://github.com/gorilla/mux) - Router HTTP
 - [Gorilla WebSocket](https://github.com/gorilla/websocket)
@@ -115,6 +120,7 @@ La configuración se almacena en MongoDB con el siguiente esquema:
 - [MongoDB Driver](https://go.mongodb.org/mongo-driver)
 
 ### Frontend
+
 - [Vue 3](https://vuejs.org/)
 - [TypeScript](https://www.typescriptlang.org/)
 - [Vite](https://vitejs.dev/)

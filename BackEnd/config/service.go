@@ -161,3 +161,11 @@ func InitAndPoll(ctx context.Context, store *Store, pollEvery time.Duration) err
 func (s *Store) DB() *mongo.Database {
 	return s.client.Database(s.dbName)
 }
+
+// Close cierra la conexión con MongoDB
+func (s *Store) Close(ctx context.Context) error {
+	if s.client == nil {
+		return nil
+	}
+	return s.client.Disconnect(ctx)
+}

@@ -18,7 +18,13 @@ var broadcast func([]byte)
 
 func SetBroadcaster(fn func([]byte)) { broadcast = fn }
 
-// ===== Estado de secuencia en memoria =====
+// ===== Estado de secuencia en memoria con worker pattern =====
+
+type sequenceTask struct {
+	RelayID string
+	Action  string // "ON", "OFF", "RESTART"
+	Delay   int
+}
 
 var (
 	sequenceState = map[string]string{
@@ -27,8 +33,53 @@ var (
 		"3": "", // Módulo 1
 		"4": "", // Módulo 2
 	}
-	stateMutex sync.Mutex
+	stateMutex sync.RWMutex
+	taskQueue  = make(chan sequenceTask, 20)
 )
+
+// Worker que procesa tareas de forma thread-safe
+func init() {
+	go sequenceWorker()
+}
+
+func sequenceWorker() {
+	for task := range taskQueue {
+		// Actualizar estado
+		stateMutex.Lock()
+		switch task.Action {
+		case "ON":
+			sequenceState[task.RelayID] = "starting"
+		case "OFF":
+			sequenceState[task.RelayID] = "stopping"
+		case "RESTART":
+			sequenceState[task.RelayID] = "restarting"
+		}
+		stateMutex.Unlock()
+		notifySequenceStateChange()
+
+		// Enviar comando MQTT
+		status := task.Action
+		if task.Action == "RESTART" {
+			status = "OFF"
+		}
+		if err := sendMQTTCommand(task.RelayID, status, task.Delay); err != nil {
+			log.Printf("❌ Error en comando MQTT para relay %s: %v", task.RelayID, err)
+		}
+
+		// Esperar el delay
+		if task.Delay > 0 {
+			time.Sleep(time.Duration(task.Delay) * time.Second)
+		} else {
+			time.Sleep(5 * time.Second) // delay default para secuencias
+		}
+
+		// Limpiar estado
+		stateMutex.Lock()
+		sequenceState[task.RelayID] = ""
+		stateMutex.Unlock()
+		notifySequenceStateChange()
+	}
+}
 
 // ===== Formato de comando MQTT (mantiene orden de campos) =====
 
@@ -48,12 +99,12 @@ func mqttInControlTopic(placaID int) string {
 }
 
 func notifySequenceStateChange() {
-	stateMutex.Lock()
+	stateMutex.RLock()
 	state := make(map[string]string, len(sequenceState))
 	for k, v := range sequenceState {
 		state[k] = v
 	}
-	stateMutex.Unlock()
+	stateMutex.RUnlock()
 
 	payload := map[string]any{
 		"topic":   "/mqtt/sequence_state",
@@ -69,7 +120,7 @@ func notifySequenceStateChange() {
 	}
 }
 
-func sendMQTTCommand(relayID string, status string, delaySec int) {
+func sendMQTTCommand(relayID string, status string, delaySec int) error {
 	// Construir comando en el orden exacto
 	cmd := MQTTCommand{
 		Type:   "ON/OFF",
@@ -87,7 +138,7 @@ func sendMQTTCommand(relayID string, status string, delaySec int) {
 	msg, err := json.Marshal(cmd)
 	if err != nil {
 		log.Println("❌ sendMQTTCommand marshal:", err)
-		return
+		return fmt.Errorf("marshal error: %w", err)
 	}
 
 	// Tomar placaID desde la config en memoria (cargada desde Mongo)
@@ -96,85 +147,29 @@ func sendMQTTCommand(relayID string, status string, delaySec int) {
 
 	// Publicar
 	log.Printf("📤 MQTT publish → %s : %s", topic, string(msg))
-	broker.Publish(topic, msg)
+	if err := broker.Publish(topic, msg); err != nil {
+		return fmt.Errorf("publish error: %w", err)
+	}
+	
+	return nil
 }
 
-// ===== Secuencias =====
+// ===== Secuencias usando taskQueue =====
 
 func startSequence() {
-	stateMutex.Lock()
-	sequenceState["1"], sequenceState["2"], sequenceState["3"], sequenceState["4"] = "starting", "starting", "starting", "starting"
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 1) Generador
-	sendMQTTCommand("1", "ON", 0)
-	time.Sleep(5 * time.Second)
-	stateMutex.Lock()
-	sequenceState["1"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 2) Rack Monitoreo
-	sendMQTTCommand("2", "ON", 0)
-	time.Sleep(5 * time.Second)
-	stateMutex.Lock()
-	sequenceState["2"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 3) Módulo 1
-	sendMQTTCommand("3", "ON", 0)
-	time.Sleep(5 * time.Second)
-	stateMutex.Lock()
-	sequenceState["3"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 4) Módulo 2
-	sendMQTTCommand("4", "ON", 0)
-	stateMutex.Lock()
-	sequenceState["4"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
+	// Encender en orden: 1 -> 2 -> 3 -> 4
+	taskQueue <- sequenceTask{RelayID: "1", Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "2", Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "3", Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "4", Action: "ON", Delay: 0}
 }
 
 func stopSequence() {
-	stateMutex.Lock()
-	sequenceState["1"], sequenceState["2"], sequenceState["3"], sequenceState["4"] = "stopping", "stopping", "stopping", "stopping"
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 4) Módulo 2
-	sendMQTTCommand("4", "OFF", 0)
-	time.Sleep(2 * time.Second)
-	stateMutex.Lock()
-	sequenceState["4"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 3) Módulo 1
-	sendMQTTCommand("3", "OFF", 0)
-	time.Sleep(2 * time.Second)
-	stateMutex.Lock()
-	sequenceState["3"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 2) Rack Monitoreo
-	sendMQTTCommand("2", "OFF", 0)
-	time.Sleep(2 * time.Second)
-	stateMutex.Lock()
-	sequenceState["2"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
-
-	// 1) Generador
-	sendMQTTCommand("1", "OFF", 0)
-	stateMutex.Lock()
-	sequenceState["1"] = ""
-	stateMutex.Unlock()
-	notifySequenceStateChange()
+	// Apagar en orden inverso: 4 -> 3 -> 2 -> 1
+	taskQueue <- sequenceTask{RelayID: "4", Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "3", Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "2", Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: "1", Action: "OFF", Delay: 0}
 }
 
 // ===== HTTP Handlers =====
@@ -191,10 +186,13 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bloqueos concurrentes de “secuencia en curso”
-	stateMutex.Lock()
-	inFlight := sequenceState[cmd.RelayID] == "starting" || sequenceState[cmd.RelayID] == "stopping" || sequenceState[cmd.RelayID] == "restarting"
-	stateMutex.Unlock()
+	// Verificar si hay secuencia en curso (lectura thread-safe)
+	stateMutex.RLock()
+	inFlight := sequenceState[cmd.RelayID] == "starting" ||
+		sequenceState[cmd.RelayID] == "stopping" ||
+		sequenceState[cmd.RelayID] == "restarting"
+	stateMutex.RUnlock()
+
 	if inFlight {
 		http.Error(w, "⚠️ Otra secuencia está en curso", http.StatusConflict)
 		return
@@ -216,47 +214,17 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 
 	// Reset all (2,3,4 con delays distintos)
 	if cmd.RelayID == "all" {
-		go func() {
-			resetRelays := []string{"2", "3", "4"}
-			delayTimes := map[string]int{"2": 5, "3": 7, "4": 9}
-
-			stateMutex.Lock()
-			for _, r := range resetRelays {
-				sequenceState[r] = "restarting"
-				sendMQTTCommand(r, "OFF", delayTimes[r])
-			}
-			stateMutex.Unlock()
-			notifySequenceStateChange()
-
-			for _, r := range resetRelays {
-				time.Sleep(time.Duration(delayTimes[r]) * time.Second)
-				stateMutex.Lock()
-				sequenceState[r] = ""
-				stateMutex.Unlock()
-				notifySequenceStateChange()
-			}
-		}()
+		taskQueue <- sequenceTask{RelayID: "2", Action: "RESTART", Delay: 5}
+		taskQueue <- sequenceTask{RelayID: "3", Action: "RESTART", Delay: 7}
+		taskQueue <- sequenceTask{RelayID: "4", Action: "RESTART", Delay: 9}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("✅ Reset All enviado y en proceso"))
 		return
 	}
 
-	// Relays 2/3/4 con DELAY=5s
+	// Relays individuales 2/3/4 con DELAY=5s
 	if cmd.RelayID == "2" || cmd.RelayID == "3" || cmd.RelayID == "4" {
-		delay := 5
-		stateMutex.Lock()
-		sequenceState[cmd.RelayID] = "restarting"
-		stateMutex.Unlock()
-		notifySequenceStateChange()
-
-		sendMQTTCommand(cmd.RelayID, "OFF", delay)
-		time.Sleep(time.Duration(delay) * time.Second)
-
-		stateMutex.Lock()
-		sequenceState[cmd.RelayID] = ""
-		stateMutex.Unlock()
-		notifySequenceStateChange()
-
+		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("✅ Comando ejecutado con DELAY"))
 		return
@@ -267,8 +235,8 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 
 // GET /mqtt/sequence_state  →  { "sequenceState": { "1":"", "2":"", ... } }
 func GetCurrentSequenceState(w http.ResponseWriter, r *http.Request) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
 	resp := map[string]map[string]string{"sequenceState": sequenceState}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

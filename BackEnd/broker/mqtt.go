@@ -1,7 +1,9 @@
 package broker
 
 import (
+	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,24 +34,34 @@ func SetOnMessage(cb func(string, []byte))                   { onMsg = cb }
 func SetOnStatus(cb func(event string, info map[string]any)) { onStatus = cb }
 
 // Acepta "10.0.0.5", "10.0.0.5:1883" o "tcp://10.0.0.5:1883"
-func brokerURL(h string) string {
+// Retorna error si la URL es inválida
+func brokerURL(h string) (string, error) {
 	h = strings.TrimSpace(h)
 	if h == "" {
-		return ""
+		return "", fmt.Errorf("broker vacío")
 	}
+
+	// Si ya tiene scheme, validar
 	if strings.Contains(h, "://") {
-		return h
+		u, err := url.Parse(h)
+		if err != nil {
+			return "", fmt.Errorf("URL inválida: %w", err)
+		}
+		return u.String(), nil
 	}
-	if strings.Contains(h, ":") {
-		return "tcp://" + h
+
+	// Agregar puerto por defecto si falta
+	if !strings.Contains(h, ":") {
+		h += ":1883"
 	}
-	return "tcp://" + h + ":1883"
+	return "tcp://" + h, nil
 }
 
 func curBrokerURL() string {
 	mu.Lock()
 	defer mu.Unlock()
-	return brokerURL(curCfg.Ipbroker)
+	brokerStr, _ := brokerURL(curCfg.Ipbroker)
+	return brokerStr
 }
 
 // Watchdog: registra reintentos periódicos aunque Paho no dispare OnReconnecting
@@ -108,15 +120,14 @@ func stopWatchdog() {
 func connect(c config.Config) {
 	// fija la config activa
 	mu.Lock()
-
 	curCfg = c
 	mu.Unlock()
 
-	url := brokerURL(c.Ipbroker)
-	if url == "" {
-		log.Println("⚠️ MQTT: Ipbroker vacío; no conecto")
+	url, err := brokerURL(c.Ipbroker)
+	if err != nil {
+		log.Printf("⚠️ MQTT: Error en broker URL: %v", err)
 		if onStatus != nil {
-			onStatus("no_broker", map[string]any{"reason": "empty_ipbroker"})
+			onStatus("invalid_broker", map[string]any{"error": err.Error()})
 		}
 		return
 	}
@@ -209,20 +220,25 @@ func handleMessage(_ mqtt.Client, msg mqtt.Message) {
 	}
 }
 
-func Publish(topic string, payload []byte) {
+func Publish(topic string, payload []byte) error {
 	mu.Lock()
 	cl := client
 	mu.Unlock()
 
 	if cl == nil || !cl.IsConnected() {
-		log.Println("⚠️ Publish: MQTT no conectado")
-		return
+		err := fmt.Errorf("MQTT no conectado")
+		log.Printf("⚠️ Publish: %v", err)
+		return err
 	}
+	
 	t := cl.Publish(topic, 0, false, payload)
 	t.Wait()
-	if t.Error() != nil {
-		log.Printf("❌ Error publish %s: %v", topic, t.Error())
+	if err := t.Error(); err != nil {
+		log.Printf("❌ Error publish %s: %v", topic, err)
+		return fmt.Errorf("publish failed: %w", err)
 	}
+	
+	return nil
 }
 
 func stop() {
@@ -235,6 +251,12 @@ func stop() {
 	}
 	// detiene el watchdog del cliente actual
 	stopWatchdog()
+}
+
+// Disconnect cierra la conexión MQTT (para graceful shutdown)
+func Disconnect() {
+	log.Println("🛑 Cerrando conexión MQTT...")
+	stop()
 }
 
 func RestartIfNeeded(newCfg config.Config, diff config.Diff) {
