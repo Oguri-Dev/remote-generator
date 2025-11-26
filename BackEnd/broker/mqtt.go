@@ -230,14 +230,14 @@ func Publish(topic string, payload []byte) error {
 		log.Printf("⚠️ Publish: %v", err)
 		return err
 	}
-	
+
 	t := cl.Publish(topic, 0, false, payload)
 	t.Wait()
 	if err := t.Error(); err != nil {
 		log.Printf("❌ Error publish %s: %v", topic, err)
 		return fmt.Errorf("publish failed: %w", err)
 	}
-	
+
 	return nil
 }
 

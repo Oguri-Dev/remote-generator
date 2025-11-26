@@ -150,7 +150,7 @@ func sendMQTTCommand(relayID string, status string, delaySec int) error {
 	if err := broker.Publish(topic, msg); err != nil {
 		return fmt.Errorf("publish error: %w", err)
 	}
-	
+
 	return nil
 }
 

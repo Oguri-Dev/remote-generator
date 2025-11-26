@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type authPayload struct {
@@ -15,7 +16,26 @@ type authPayload struct {
 	Password string `json:"password"`
 }
 
-// Register: guarda usuario y contraseña en texto plano (solo para pruebas locales)
+// CheckSetup: verifica si existe al menos un usuario
+func (a *ConfigAPI) CheckSetup(w http.ResponseWriter, r *http.Request) {
+	coll := a.Store.DB().Collection("users")
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	count, err := coll.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"needsSetup": count == 0,
+		"userCount":  count,
+	})
+}
+
+// Register: guarda usuario con contraseña hasheada
 func (a *ConfigAPI) Register(w http.ResponseWriter, r *http.Request) {
 	var p authPayload
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
@@ -31,15 +51,23 @@ func (a *ConfigAPI) Register(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	// Verificar si ya existe el usuario
 	var existing bson.M
 	if err := coll.FindOne(ctx, bson.M{"username": p.Username}).Decode(&existing); err == nil {
 		http.Error(w, "usuario ya existe", http.StatusConflict)
 		return
 	}
 
-	_, err := coll.InsertOne(ctx, bson.M{
+	// Hash de la contraseña
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "error al procesar contraseña", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = coll.InsertOne(ctx, bson.M{
 		"username": p.Username,
-		"password": p.Password, // texto plano intencional
+		"password": string(hashedPassword),
 		"created":  time.Now().UTC(),
 	})
 	if err != nil {
@@ -51,7 +79,7 @@ func (a *ConfigAPI) Register(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("usuario creado"))
 }
 
-// Login: compara password en texto plano y establece cookie
+// Login: compara password hasheada y establece cookie
 func (a *ConfigAPI) Login(w http.ResponseWriter, r *http.Request) {
 
 	var p authPayload
@@ -78,7 +106,8 @@ func (a *ConfigAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.Password != p.Password {
+	// Comparar contraseña hasheada
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(p.Password)); err != nil {
 		http.Error(w, "credenciales inválidas", http.StatusUnauthorized)
 		return
 	}

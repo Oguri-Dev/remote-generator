@@ -48,7 +48,7 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		log.Printf("upgrade ws: %v", err)
 		return
 	}
-	
+
 	h.mu.Lock()
 	h.clients[conn] = struct{}{}
 	h.mu.Unlock()
@@ -62,7 +62,7 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	// Goroutine para lectura
 	go h.readPump(conn)
-	
+
 	// Goroutine para ping periódico
 	go h.writePump(conn)
 }
@@ -74,7 +74,7 @@ func (h *Hub) readPump(conn *websocket.Conn) {
 		h.mu.Unlock()
 		conn.Close()
 	}()
-	
+
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -83,7 +83,7 @@ func (h *Hub) readPump(conn *websocket.Conn) {
 			}
 			return
 		}
-		
+
 		// COMPAT: reenviar hacia backend (como hacía tu wsHandler viejo)
 		if h.OnClientMessage != nil {
 			h.OnClientMessage(msg)
@@ -97,7 +97,7 @@ func (h *Hub) writePump(conn *websocket.Conn) {
 		ticker.Stop()
 		conn.Close()
 	}()
-	
+
 	for {
 		select {
 		case <-ticker.C:

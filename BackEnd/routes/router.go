@@ -19,6 +19,7 @@ func SetupRouter(hub *ws.Hub, cfgApi *controllers.ConfigAPI) http.Handler {
 	api.HandleFunc("/publish", controllers.PublishHandler).Methods("POST")
 
 	//user
+	api.HandleFunc("/auth/check-setup", cfgApi.CheckSetup).Methods("GET")
 	api.HandleFunc("/auth/login", cfgApi.Login).Methods("POST")
 	api.HandleFunc("/auth/register", cfgApi.Register).Methods("POST")
 	api.HandleFunc("/auth/logout", cfgApi.Logout).Methods("POST")
