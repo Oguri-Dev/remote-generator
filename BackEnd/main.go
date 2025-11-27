@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"generador/broker"
 	"generador/config"
 	"generador/controllers"
@@ -18,28 +20,35 @@ import (
 )
 
 func main() {
-	log.Println("BOOT v11 🟢") // cambia el número cada vez que guardes
+	// Cargar variables de entorno desde .env
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
+	}
+
+	log.Println("🚀 Iniciando servidor...")
 	// --- ENV ---
 	mongoURI := envOr("MONGODB_URI", "mongodb://localhost:27017")
-	dbName := envOr("MONGODB_DB", "generator") // si tu DB real es "generador", cámbialo aquí o por env
+	dbName := envOr("MONGODB_DB", "generator")
 	collName := envOr("MONGODB_COLL", "config")
-	frontend := os.Getenv("FRONTEND_ORIGIN")
+	frontend := envOr("FRONTEND_ORIGIN", "http://localhost:3069")
 	port := envOr("PORT", "8099")
+
+	log.Printf("📍 Puerto configurado: %s", port)
 
 	// --- Mongo & Config ---
 	ctx := context.Background()
 	store, err := config.NewStore(ctx, mongoURI, dbName, collName)
 	if err != nil {
-		log.Fatalf("mongo: %v", err)
+		log.Fatalf("❌ Error conectando a MongoDB: %v", err)
 	}
 	if err := config.InitAndPoll(ctx, store, 0); err != nil {
-		log.Fatalf("config: %v", err)
+		log.Fatalf("❌ Error inicializando configuración: %v", err)
 	}
-	log.Println("passed mongo and config")
+	log.Println("✅ MongoDB y configuración inicializados")
 
 	// --- WS Hub ---
 	hub := ws.NewHub(frontend)
-	log.Println("passed ws hub")
+	log.Println("✅ WebSocket Hub creado")
 
 	// ⬅️⬅️ 1) Broadcaster para /mqtt/sequence_state (progresos)
 	controllers.SetBroadcaster(hub.BroadcastText)
@@ -88,7 +97,7 @@ func main() {
 	config.SubscribeChanges(func(c config.Config, d config.Diff) {
 		broker.RestartIfNeeded(c, d)
 	})
-	log.Println("passed mqtt")
+	log.Println("✅ Cliente MQTT inicializado")
 
 	// --- HTTP ---
 	cfgApi := &controllers.ConfigAPI{Store: store}
@@ -129,9 +138,9 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Println("HTTP escuchando en", srv.Addr)
+	log.Printf("✅ Servidor HTTP escuchando en puerto %s", port)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		log.Fatalf("❌ Error en servidor HTTP: %v", err)
 	}
 }
 

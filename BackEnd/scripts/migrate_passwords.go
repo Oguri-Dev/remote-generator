@@ -26,7 +26,7 @@ func main() {
 	}
 	defer client.Disconnect(ctx)
 
-	coll := client.Database("generador").Collection("users")
+	coll := client.Database("generator").Collection("users")
 
 	// Obtener todos los usuarios
 	cursor, err := coll.Find(ctx, bson.M{})

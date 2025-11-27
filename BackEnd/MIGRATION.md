@@ -19,6 +19,7 @@ go run scripts/migrate_passwords.go
 ```
 
 Este script:
+
 - Detecta usuarios con contraseñas en texto plano
 - Las convierte a bcrypt hash
 - Omite usuarios ya migrados
@@ -32,7 +33,9 @@ Este script:
 ### API
 
 #### GET `/api/auth/check-setup`
+
 Respuesta:
+
 ```json
 {
   "needsSetup": true,
@@ -41,7 +44,9 @@ Respuesta:
 ```
 
 #### POST `/api/auth/register`
+
 Body:
+
 ```json
 {
   "username": "admin",
@@ -50,7 +55,9 @@ Body:
 ```
 
 #### POST `/api/auth/login`
+
 Body:
+
 ```json
 {
   "username": "admin",

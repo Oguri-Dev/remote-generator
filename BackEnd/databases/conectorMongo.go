@@ -16,7 +16,7 @@ func MongoConnect() *mongo.Client {
 	defer cancel()
 
 	// Opciones de conexión a MongoDB
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017/generador")
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017/generator")
 
 	// Conexión al cluster de MongoDB
 	client, err := mongo.Connect(ctx, clientOptions)

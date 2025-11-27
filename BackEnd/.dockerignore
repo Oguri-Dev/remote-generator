@@ -1,0 +1,15 @@
+# Ignorar archivos de desarrollo y temporales
+*.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Binarios
+generador
+generador.exe
+
+# IDEs
+.vscode/
+.idea/

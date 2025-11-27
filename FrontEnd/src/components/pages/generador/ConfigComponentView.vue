@@ -23,6 +23,10 @@ const form = reactive({
   usermqtt: '',
   passmqtt: '',
   topic: '',
+  relay_generador: '1',
+  relay_rack_monitoreo: '2',
+  relay_modulo1: '3',
+  relay_modulo2: '4',
 })
 let baseSnapshot: any = {} // última versión cargada desde el server
 
@@ -37,7 +41,6 @@ async function load() {
   loading.value = true
   try {
     const { data } = await api.get('/config')
-    console.log(data)
     Object.assign(form, data || {})
     baseSnapshot = JSON.parse(JSON.stringify(data || {})) // deep copy para comparación
   } catch (e: any) {
@@ -60,6 +63,10 @@ function normalizarPayload() {
     usermqtt: String(form.usermqtt || '').trim(),
     passmqtt: String(form.passmqtt || ''), // no trim si admites espacios
     topic: String(form.topic || '').trim(),
+    relay_generador: String(form.relay_generador || '1').trim(),
+    relay_rack_monitoreo: String(form.relay_rack_monitoreo || '2').trim(),
+    relay_modulo1: String(form.relay_modulo1 || '3').trim(),
+    relay_modulo2: String(form.relay_modulo2 || '4').trim(),
   }
 }
 
@@ -136,6 +143,47 @@ onMounted(load)
                 <VInput v-model="form.topic" placeholder="omni/generador/acciones" />
               </VControl>
             </VField>
+
+            <!-- Mapeo de Relays -->
+            <div class="mt-5 mb-4">
+              <h3 class="title is-5">Mapeo de Relays</h3>
+              <p class="subtitle is-6 mb-4">Asigna qué ID de relay de la placa controla cada función</p>
+            </div>
+
+            <div class="columns">
+              <div class="column is-6">
+                <VField label="Relay Generador">
+                  <VControl icon="feather:zap">
+                    <VInput v-model="form.relay_generador" placeholder="1" />
+                  </VControl>
+                </VField>
+              </div>
+              <div class="column is-6">
+                <VField label="Relay Rack Monitoreo">
+                  <VControl icon="feather:server">
+                    <VInput v-model="form.relay_rack_monitoreo" placeholder="2" />
+                  </VControl>
+                </VField>
+              </div>
+            </div>
+
+            <div class="columns">
+              <div class="column is-6">
+                <VField label="Relay Módulo 1">
+                  <VControl icon="feather:box">
+                    <VInput v-model="form.relay_modulo1" placeholder="3" />
+                  </VControl>
+                </VField>
+              </div>
+              <div class="column is-6">
+                <VField label="Relay Módulo 2">
+                  <VControl icon="feather:package">
+                    <VInput v-model="form.relay_modulo2" placeholder="4" />
+                  </VControl>
+                </VField>
+              </div>
+            </div>
+
             <div class="is-flex is-justify-content-end">
               <!-- Barra de acciones -->
               <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">

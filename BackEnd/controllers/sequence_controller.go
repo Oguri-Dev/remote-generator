@@ -157,19 +157,57 @@ func sendMQTTCommand(relayID string, status string, delaySec int) error {
 // ===== Secuencias usando taskQueue =====
 
 func startSequence() {
-	// Encender en orden: 1 -> 2 -> 3 -> 4
-	taskQueue <- sequenceTask{RelayID: "1", Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "2", Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "3", Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "4", Action: "ON", Delay: 0}
+	cfg := config.Get()
+	// Valores por defecto si no están configurados
+	relayGen := cfg.RelayGenerador
+	if relayGen == "" {
+		relayGen = "1"
+	}
+	relayRack := cfg.RelayRackMonitoreo
+	if relayRack == "" {
+		relayRack = "2"
+	}
+	relayMod1 := cfg.RelayModulo1
+	if relayMod1 == "" {
+		relayMod1 = "3"
+	}
+	relayMod2 := cfg.RelayModulo2
+	if relayMod2 == "" {
+		relayMod2 = "4"
+	}
+
+	// Encender en orden: Generador -> Rack -> Módulo1 -> Módulo2
+	taskQueue <- sequenceTask{RelayID: relayGen, Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayRack, Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayMod1, Action: "ON", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayMod2, Action: "ON", Delay: 0}
 }
 
 func stopSequence() {
-	// Apagar en orden inverso: 4 -> 3 -> 2 -> 1
-	taskQueue <- sequenceTask{RelayID: "4", Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "3", Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "2", Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: "1", Action: "OFF", Delay: 0}
+	cfg := config.Get()
+	// Valores por defecto si no están configurados
+	relayGen := cfg.RelayGenerador
+	if relayGen == "" {
+		relayGen = "1"
+	}
+	relayRack := cfg.RelayRackMonitoreo
+	if relayRack == "" {
+		relayRack = "2"
+	}
+	relayMod1 := cfg.RelayModulo1
+	if relayMod1 == "" {
+		relayMod1 = "3"
+	}
+	relayMod2 := cfg.RelayModulo2
+	if relayMod2 == "" {
+		relayMod2 = "4"
+	}
+
+	// Apagar en orden inverso: Módulo2 -> Módulo1 -> Rack -> Generador
+	taskQueue <- sequenceTask{RelayID: relayMod2, Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayMod1, Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayRack, Action: "OFF", Delay: 0}
+	taskQueue <- sequenceTask{RelayID: relayGen, Action: "OFF", Delay: 0}
 }
 
 // ===== HTTP Handlers =====

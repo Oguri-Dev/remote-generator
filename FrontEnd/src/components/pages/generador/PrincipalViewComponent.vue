@@ -83,7 +83,7 @@
                           'text-success': estadoPlaca === 'Conectada',
 
                           'text-warning-breathing': estadoPlaca === 'Intentando conexión',
-                          'text-danger': estadoPlaca === 'Desconectada'
+                          'text-danger-breathing': estadoPlaca === 'Desconectada'
                         }">
                           Estado Placa: {{ estadoPlaca }}
                         </h2>
@@ -180,7 +180,7 @@
                           <div class="progress-row">
                             <p style="font-size: x-large; "><strong>{{
                               relayNames[relayId]
-                            }}:</strong> {{
+                                }}:</strong> {{
                                   mqttStore.sequenceState[relayId] }}...
                               <ProgressSpinner style=" width: 30px; height: 25px;" strokeWidth="8"
                                 animationDuration="2s" aria-label="Custom ProgressSpinner" />
@@ -417,5 +417,35 @@ const activeSequences = computed(() => {
   font-weight: bold;
   animation: breathing-yellow 2s infinite ease-in-out;
   /* Animación amarilla para Conectando */
+}
+
+@keyframes breathing-red {
+  0% {
+    color: #dc3545;
+  }
+
+  /* Rojo fuerte */
+  50% {
+    color: #ff6b6b;
+  }
+
+  /* Rojo más claro */
+  100% {
+    color: #dc3545;
+  }
+
+  /* Regresa al rojo fuerte */
+}
+
+.text-danger-breathing {
+  font-weight: bold;
+  animation: breathing-red 2s infinite ease-in-out;
+  /* Animación roja para Desconectada */
+}
+
+.text-warning-breathing {
+  font-weight: bold;
+  animation: breathing-yellow 2s infinite ease-in-out;
+  /* Animación amarilla para Intentando conexión */
 }
 </style>

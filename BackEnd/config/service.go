@@ -19,6 +19,12 @@ type Config struct {
 	Usermqtt string `bson:"usermqtt" json:"usermqtt"`
 	Passmqtt string `bson:"passmqtt" json:"passmqtt"`
 	Topic    string `bson:"topic"    json:"topic"`
+
+	// Mapeo de funciones a IDs de relay
+	RelayGenerador     string `bson:"relay_generador"      json:"relay_generador"`
+	RelayRackMonitoreo string `bson:"relay_rack_monitoreo" json:"relay_rack_monitoreo"`
+	RelayModulo1       string `bson:"relay_modulo1"        json:"relay_modulo1"`
+	RelayModulo2       string `bson:"relay_modulo2"        json:"relay_modulo2"`
 }
 
 type Diff struct {
@@ -91,12 +97,16 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	// 1) Documento normalizado (llaves nuevas en minúscula)
 	doc := bson.M{
-		"ipplaca":  in.Ipplaca,
-		"idplaca":  in.Idplaca,
-		"ipbroker": in.Ipbroker,
-		"usermqtt": in.Usermqtt,
-		"passmqtt": in.Passmqtt,
-		"topic":    in.Topic,
+		"ipplaca":              in.Ipplaca,
+		"idplaca":              in.Idplaca,
+		"ipbroker":             in.Ipbroker,
+		"usermqtt":             in.Usermqtt,
+		"passmqtt":             in.Passmqtt,
+		"topic":                in.Topic,
+		"relay_generador":      in.RelayGenerador,
+		"relay_rack_monitoreo": in.RelayRackMonitoreo,
+		"relay_modulo1":        in.RelayModulo1,
+		"relay_modulo2":        in.RelayModulo2,
 	}
 
 	// 2) Llaves legacy a eliminar (las que te aparecieron duplicadas)

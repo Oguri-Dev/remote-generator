@@ -23,6 +23,9 @@ const isCheckingSetup = ref(true)
 const checkSetup = async () => {
   try {
     const response = await fetch('/api/auth/check-setup')
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
     const data = await response.json()
     needsSetup.value = data.needsSetup
   } catch (error) {
@@ -40,6 +43,10 @@ const handleLogin = async () => {
       await userSession.login(username.value, password.value)
       notyf.dismissAll()
       notyf.success('Bienvenido !!!')
+
+      // Pequeño delay para asegurar que la cookie se establezca
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       if (redirect) {
         router.push(redirect)
       } else {
@@ -68,6 +75,8 @@ const handleRegister = async () => {
 
       if (response.ok) {
         notyf.success('Usuario creado exitosamente')
+        // Cambiar el estado para mostrar que ya no necesita setup
+        needsSetup.value = false
         // Intentar login automático después del registro
         await handleLogin()
       } else {
@@ -213,7 +222,7 @@ definePage({
                     Todavía no tengo una cuenta
                   </RouterLink>
                 </div>
-                
+
                 <div v-if="!isCheckingSetup" class="auth-form-wrapper">
                   <!-- Formulario de Setup o Login -->
                   <form method="post" novalidate @submit.prevent="needsSetup ? handleRegister() : handleLogin()">
