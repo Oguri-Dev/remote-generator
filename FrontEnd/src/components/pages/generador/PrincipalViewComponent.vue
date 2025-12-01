@@ -234,14 +234,19 @@ const isSequenceRunning = computed(() =>
   mqttStore.sequenceState["1"] === "starting" || mqttStore.sequenceState["1"] === "stopping"
 );
 
-// Deshabilitar TODOS los botones si el generador está en secuencia
-const areButtonsDisabled = computed(() =>
-  isSequenceRunning.value || !isSystemConnected.value || !isGeneratorOn.value || !estadoPlaca.value
+// Verificar si hay CUALQUIER secuencia activa (módulos o generador)
+const isAnySequenceActive = computed(() =>
+  Object.values(mqttStore.sequenceState).some(state => state !== "")
 );
 
-// Habilitar botón del generador solo si no hay secuencia activa
+// Deshabilitar TODOS los botones si hay cualquier secuencia activa
+const areButtonsDisabled = computed(() =>
+  isAnySequenceActive.value || !isSystemConnected.value || !isGeneratorOn.value || !estadoPlaca.value
+);
+
+// Habilitar botón del generador solo si no hay NINGUNA secuencia activa
 const canToggleGenerator = computed(() =>
-  !isSequenceRunning.value && isSystemConnected.value && !isManualMode.value
+  !isAnySequenceActive.value && isSystemConnected.value && !isManualMode.value
 );
 
 const isButtonDisabled = (relayId: string) => {

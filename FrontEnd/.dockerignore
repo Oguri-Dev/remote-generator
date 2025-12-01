@@ -1,3 +1,40 @@
-public/uploads
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
 dist
+build
+.output
+
+# Development files
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Testing
 cypress
+coverage
+.nyc_output
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Uploads and temp files
+public/uploads
+tmp
+*.log
+
+# Documentation
+documentation
+*.md
+!README.md
+
+# Other
+.DS_Store
+Thumbs.db

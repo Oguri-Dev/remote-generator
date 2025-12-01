@@ -18,9 +18,15 @@ const (
 	writeWait = 10 * time.Second
 )
 
+type client struct {
+	conn    *websocket.Conn
+	writeMu sync.Mutex
+	sendCh  chan []byte
+}
+
 type Hub struct {
 	upgrader websocket.Upgrader
-	clients  map[*websocket.Conn]struct{}
+	clients  map[*client]struct{}
 	mu       sync.RWMutex
 
 	OnClientMessage func([]byte) // <- NUEVO
@@ -38,7 +44,7 @@ func NewHub(allowedOrigin string) *Hub {
 				return origin == allowedOrigin
 			},
 		},
-		clients: make(map[*websocket.Conn]struct{}),
+		clients: make(map[*client]struct{}),
 	}
 }
 
@@ -49,8 +55,13 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c := &client{
+		conn:   conn,
+		sendCh: make(chan []byte, 256),
+	}
+
 	h.mu.Lock()
-	h.clients[conn] = struct{}{}
+	h.clients[c] = struct{}{}
 	h.mu.Unlock()
 
 	// Configurar timeouts y pong handler
@@ -61,22 +72,22 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Goroutine para lectura
-	go h.readPump(conn)
+	go h.readPump(c)
 
-	// Goroutine para ping periódico
-	go h.writePump(conn)
+	// Goroutine para escritura (maneja el canal sendCh)
+	go h.writePump(c)
 }
 
-func (h *Hub) readPump(conn *websocket.Conn) {
+func (h *Hub) readPump(c *client) {
 	defer func() {
 		h.mu.Lock()
-		delete(h.clients, conn)
+		delete(h.clients, c)
 		h.mu.Unlock()
-		conn.Close()
+		c.conn.Close()
 	}()
 
 	for {
-		_, msg, err := conn.ReadMessage()
+		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("websocket error: %v", err)
@@ -91,18 +102,30 @@ func (h *Hub) readPump(conn *websocket.Conn) {
 	}
 }
 
-func (h *Hub) writePump(conn *websocket.Conn) {
+func (h *Hub) writePump(c *client) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		conn.Close()
+		c.conn.Close()
 	}()
 
 	for {
 		select {
+		case msg, ok := <-c.sendCh:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// Canal cerrado
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+
 		case <-ticker.C:
-			conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
 		}
@@ -112,10 +135,13 @@ func (h *Hub) writePump(conn *websocket.Conn) {
 func (h *Hub) BroadcastText(msg []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+
 	for c := range h.clients {
-		c.SetWriteDeadline(time.Now().Add(writeWait))
-		if err := c.WriteMessage(websocket.TextMessage, msg); err != nil {
-			log.Printf("ws write: %v", err)
+		select {
+		case c.sendCh <- msg:
+		default:
+			// Canal lleno, skip este cliente
+			log.Printf("ws client buffer full, skipping message")
 		}
 	}
 }

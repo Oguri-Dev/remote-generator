@@ -79,6 +79,12 @@ watch(
             <i aria-hidden="true" class="iconify sidebar-svg" data-icon="feather:settings" />
           </RouterLink>
         </li>
+        <!-- ✨ Nuevo: enlace a Historial de Activaciones -->
+        <li>
+          <RouterLink to="/app/activity-logs" data-content="Historial">
+            <i aria-hidden="true" class="iconify sidebar-svg" data-icon="feather:activity" />
+          </RouterLink>
+        </li>
       </template>
     </Sidebar>
     <VViewWrapper>

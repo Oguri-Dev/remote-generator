@@ -101,6 +101,10 @@ func main() {
 
 	// --- HTTP ---
 	cfgApi := &controllers.ConfigAPI{Store: store}
+
+	// Inyectar ConfigAPI para logging de actividades
+	controllers.SetConfigAPI(cfgApi)
+
 	handler := routes.SetupRouter(hub, cfgApi)
 
 	srv := &http.Server{

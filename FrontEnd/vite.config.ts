@@ -18,7 +18,7 @@ import { unheadVueComposablesImports } from '@unhead/vue'
 
 // local vite plugin
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const VitePluginVueroDoc = (options: any) => { }
+const VitePluginVueroDoc = (options: any) => {}
 import { VitePluginPurgeComments } from './vite-plugin-purge-comments'
 
 // options via env variables
@@ -38,7 +38,7 @@ export default defineConfig({
   // You also need to add this base like `history: createWebHistory('my-subdirectory')`
   // in ./src/router.ts
   // base: '/my-subdirectory/',
-  base: '/proyecto-generador/',
+  base: isProd ? '/' : '/proyecto-generador/',
   // Directory to serve as plain static assets.
   publicDir: 'public',
   // Adjust console output verbosity.
@@ -294,10 +294,10 @@ export default defineConfig({
     !process.env.GTM_ID
       ? undefined
       : VitePluginRadar({
-        gtm: {
-          id: process.env.GTM_ID,
-        },
-      }),
+          gtm: {
+            id: process.env.GTM_ID,
+          },
+        }),
 
     /**
      * vite-plugin-pwa generate manifest.json and register services worker to enable PWA
@@ -349,7 +349,7 @@ export default defineConfig({
          *
          * @see https://vite-pwa-org.netlify.app/guide/service-worker-precache.html
          */
-        globPatterns: ['**/*.{js,css,ico,png,svg,webp,jpg,jpeg,html}'],  // Asegúrate de incluir 'html' aquí
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp,jpg,jpeg,html}'], // Asegúrate de incluir 'html' aquí
 
         /**
          * add external cache of google fonts
@@ -422,32 +422,32 @@ export default defineConfig({
     !MINIFY_IMAGES
       ? undefined
       : ImageMin({
-        gifsicle: {
-          optimizationLevel: 7,
-          interlaced: false,
-        },
-        optipng: {
-          optimizationLevel: 7,
-        },
-        mozjpeg: {
-          quality: 60,
-        },
-        pngquant: {
-          quality: [0.8, 0.9],
-          speed: 4,
-        },
-        svgo: {
-          plugins: [
-            {
-              name: 'removeViewBox',
-              active: false,
-            },
-            {
-              name: 'removeEmptyAttrs',
-              active: false,
-            },
-          ],
-        },
-      }),
+          gifsicle: {
+            optimizationLevel: 7,
+            interlaced: false,
+          },
+          optipng: {
+            optimizationLevel: 7,
+          },
+          mozjpeg: {
+            quality: 60,
+          },
+          pngquant: {
+            quality: [0.8, 0.9],
+            speed: 4,
+          },
+          svgo: {
+            plugins: [
+              {
+                name: 'removeViewBox',
+                active: false,
+              },
+              {
+                name: 'removeEmptyAttrs',
+                active: false,
+              },
+            ],
+          },
+        }),
   ],
 })

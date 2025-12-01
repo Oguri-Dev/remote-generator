@@ -1,7 +1,14 @@
 # ===== Build Stage =====
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Habilitar pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -10,8 +17,13 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml .npmrc ./
 COPY patches ./patches
 
-# Instalar dependencias (sin Cypress para optimizar)
-RUN CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
+# Instalar dependencias (sin Cypress y sin scripts de prepare)
+RUN CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile --ignore-scripts
+
+# Preparar shiki manualmente después de instalar (solo archivos necesarios)
+COPY scripts/prepare-shiki.ts ./scripts/
+COPY public/shiki ./public/shiki
+RUN pnpm jiti scripts/prepare-shiki.ts || echo "Shiki preparation skipped"
 
 # Copiar código fuente
 COPY . .

@@ -1,15 +1,44 @@
 # Ignorar archivos de desarrollo y temporales
-*.env
-.env.*
+
+_.env
+.env._
 !.env.example
 
 # Logs
-*.log
+
+\*.log
 
 # Binarios
+
 generador
 generador.exe
+\*.exe
 
 # IDEs
+
 .vscode/
 .idea/
+_.swp
+_.swo
+
+# Git
+
+.git
+.gitignore
+
+# Documentation
+
+\*.md
+!README.md
+
+# Testing
+
+_\_test.go
+coverage._
+
+# Temp files
+
+tmp/
+temp/
+.DS_Store
+Thumbs.db

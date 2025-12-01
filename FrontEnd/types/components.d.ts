@@ -7,6 +7,7 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    ActivityLogsView: typeof import('./../src/components/pages/generador/ActivityLogsView.vue')['default']
     AnimatedLogo: typeof import('./../src/components/svg/AnimatedLogo.vue')['default']
     AppLayout: typeof import('./../src/layouts/AppLayout.vue')['default']
     AuthLayout: typeof import('./../src/layouts/AuthLayout.vue')['default']

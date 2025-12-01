@@ -15,8 +15,10 @@ import (
 // ===== Broadcaster hacia WS (inyectado desde main) =====
 
 var broadcast func([]byte)
+var configAPI *ConfigAPI
 
 func SetBroadcaster(fn func([]byte)) { broadcast = fn }
+func SetConfigAPI(api *ConfigAPI)    { configAPI = api }
 
 // ===== Estado de secuencia en memoria con worker pattern =====
 
@@ -43,6 +45,13 @@ func init() {
 }
 
 func sequenceWorker() {
+	relayNames := map[string]string{
+		"1": "Generador",
+		"2": "Rack Monitoreo",
+		"3": "Módulo 1",
+		"4": "Módulo 2",
+	}
+
 	for task := range taskQueue {
 		// Actualizar estado
 		stateMutex.Lock()
@@ -56,6 +65,16 @@ func sequenceWorker() {
 		}
 		stateMutex.Unlock()
 		notifySequenceStateChange()
+
+		// Registrar actividad
+		if configAPI != nil {
+			relayName := relayNames[task.RelayID]
+			if relayName == "" {
+				relayName = "Relay " + task.RelayID
+			}
+			description := fmt.Sprintf("%s - %s", relayName, task.Action)
+			configAPI.LogActivity(task.RelayID, relayName, task.Action, description, "system")
+		}
 
 		// Enviar comando MQTT
 		status := task.Action

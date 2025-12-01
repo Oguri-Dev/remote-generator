@@ -29,6 +29,11 @@ func SetupRouter(hub *ws.Hub, cfgApi *controllers.ConfigAPI) http.Handler {
 	api.HandleFunc("/mqtt/sequence_state", controllers.GetCurrentSequenceState).Methods("GET")
 	api.HandleFunc("/mqtt/action", controllers.HandleMqttAction).Methods("POST")
 
+	// Activity logs (historial de activaciones)
+	api.HandleFunc("/activity/logs", cfgApi.GetActivityLogs).Methods("GET")
+	api.HandleFunc("/activity/logs", cfgApi.ClearActivityLogs).Methods("DELETE")
+	api.HandleFunc("/activity/stats", cfgApi.GetActivityStats).Methods("GET")
+
 	// ---------- Rutas "legacy" sin /api (compat con front actual) ----------
 	r.HandleFunc("/mqtt/sequence_state", controllers.GetCurrentSequenceState).Methods("GET")
 	r.HandleFunc("/mqtt/action", controllers.HandleMqttAction).Methods("POST")
