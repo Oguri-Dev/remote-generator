@@ -2,7 +2,7 @@
 import { useDarkmode } from '/@src/stores/darkmode'
 import { useUserSession } from '/@src/stores/userSession'
 import { useNotyf } from '/@src/composable/useNotyf'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const isLoading = ref(false)
@@ -44,8 +44,8 @@ const handleLogin = async () => {
       notyf.dismissAll()
       notyf.success('Bienvenido !!!')
 
-      // Pequeño delay para asegurar que la cookie se establezca
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Esperar a que Vue procese el cambio de estado
+      await nextTick()
 
       if (redirect) {
         router.push(redirect)

@@ -4,10 +4,9 @@ import { useUserSession } from '/@src/stores/userSession'
 const userSession = useUserSession()
 const router = useRouter()
 
-function logout() {
-  console.log("calling logout navbar")
-  userSession.logoutUser()
-  
+async function logout() {
+  await userSession.logoutUser()
+  router.push('/auth/login')
 }
 </script>
 

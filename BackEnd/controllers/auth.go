@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -127,8 +126,6 @@ func (a *ConfigAPI) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *ConfigAPI) Logout(w http.ResponseWriter, r *http.Request) {
-	log.Println("Deleting cookies")
-
 	http.SetCookie(w, &http.Cookie{
 		Name:     "username",
 		Value:    "",

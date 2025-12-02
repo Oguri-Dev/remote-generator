@@ -5,8 +5,7 @@ import {
   setupDataFetchingGuard,
 } from 'vue-router/auto'
 
-
-import { useUserSession } from '/@src/stores/userSession'  // ⬅️
+import { useUserSession } from '/@src/stores/userSession' // ⬅️
 
 export function createRouter() {
   const router = createClientRouter({
@@ -41,11 +40,30 @@ export function createRouter() {
     const session = useUserSession()
     const isPublic = to.path.startsWith('/auth') // solo /auth es pública
 
-    if (!session.checking && !session.isLoggedIn) {
-      await session.checkSession()  // espera respuesta de /auth/me
+    // Si ya está logueado, permitir acceso
+    if (session.isLoggedIn) {
+      // Si intenta ir al login estando logueado, redirigir a /app
+      if (isPublic) {
+        return { path: '/app' }
+      }
+      return // permitir navegación
     }
 
-    if (!isPublic && !session.isLoggedIn) {
+    // Si no está logueado y no está verificando, verificar sesión
+    if (!session.checking) {
+      await session.checkSession() // espera respuesta de /auth/me
+    }
+
+    // Después de verificar, si está logueado permitir
+    if (session.isLoggedIn) {
+      if (isPublic) {
+        return { path: '/app' }
+      }
+      return
+    }
+
+    // No está logueado y quiere ir a ruta protegida
+    if (!isPublic) {
       return { path: '/auth/login', query: { redirect: to.fullPath } }
     }
   })

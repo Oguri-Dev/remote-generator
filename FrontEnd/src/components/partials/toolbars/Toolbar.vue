@@ -14,17 +14,15 @@ const isOpen = ref(false);
 const userSession = useUserSession();
 const openModal = () => {
   isOpen.value = true;
-  console.log(isOpen.value)
 };
 
 const closeModal = () => {
   isOpen.value = false;
 };
 
-const logout = () => {
-  console.log("calling logout navbar")
-  userSession.logoutUser()
-  router.push('/auth/login');
+const logout = async () => {
+  await userSession.logoutUser()
+  router.push('/auth/login')
 };
 
 
