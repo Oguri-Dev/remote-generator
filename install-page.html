@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Instalador - Sistema de Control de Generador</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 600px;
+        width: 100%;
+        padding: 40px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        color: #666;
+        font-size: 16px;
+      }
+
+      .icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+      }
+
+      .steps {
+        list-style: none;
+        margin: 30px 0;
+      }
+
+      .steps li {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .steps li:last-child {
+        border-bottom: none;
+      }
+
+      .steps .number {
+        background: #667eea;
+        color: white;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-right: 15px;
+        flex-shrink: 0;
+      }
+
+      .steps .content h3 {
+        color: #333;
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+
+      .steps .content p {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+
+      .code-block {
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 12px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        color: #333;
+        overflow-x: auto;
+        margin: 10px 0;
+      }
+
+      .copy-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: background 0.3s;
+      }
+
+      .copy-btn:hover {
+        background: #5568d3;
+      }
+
+      .copy-btn.copied {
+        background: #48bb78;
+      }
+
+      .warning {
+        background: #fff5e6;
+        border-left: 4px solid #f59e0b;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+      }
+
+      .warning strong {
+        color: #d97706;
+      }
+
+      .success {
+        background: #ecfdf5;
+        border-left: 4px solid #10b981;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 20px 0;
+      }
+
+      .success strong {
+        color: #059669;
+      }
+
+      .requirements {
+        background: #f0f4ff;
+        border: 1px solid #e0e7ff;
+        border-radius: 6px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+
+      .requirements h3 {
+        color: #667eea;
+        margin-bottom: 12px;
+      }
+
+      .requirements ul {
+        list-style: none;
+        padding: 0;
+      }
+
+      .requirements li {
+        padding: 8px 0;
+        color: #444;
+        display: flex;
+        align-items: center;
+      }
+
+      .requirements li:before {
+        content: '✓';
+        color: #10b981;
+        font-weight: bold;
+        margin-right: 10px;
+      }
+
+      .download-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 8px;
+        text-align: center;
+        margin: 30px 0;
+      }
+
+      .download-section h2 {
+        margin-bottom: 15px;
+        font-size: 20px;
+      }
+
+      .download-section p {
+        margin-bottom: 20px;
+        opacity: 0.95;
+      }
+
+      .btn-primary {
+        background: white;
+        color: #667eea;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 16px;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .info-box {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        border-radius: 6px;
+        padding: 15px;
+        margin: 20px 0;
+        color: #065f46;
+      }
+
+      .info-box strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+        color: #999;
+        font-size: 13px;
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          padding: 20px;
+        }
+
+        .header h1 {
+          font-size: 22px;
+        }
+
+        .download-section {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="icon">🚀</div>
+        <h1>Sistema de Control de Generador</h1>
+        <p>Instalación automática con Docker</p>
+      </div>
+
+      <div class="requirements">
+        <h3>📋 Requisitos Mínimos</h3>
+        <ul>
+          <li><strong>Docker Desktop</strong> (ya debe estar instalado)</li>
+          <li><strong>Windows 10+</strong> o Windows Server 2016+</li>
+          <li><strong>Conexión a Internet</strong> (para descargar imágenes)</li>
+          <li>Aproximadamente <strong>5 GB de espacio</strong> en disco</li>
+        </ul>
+      </div>
+
+      <div class="warning">
+        <strong>⚠️ IMPORTANTE:</strong> Asegúrate de que Docker Desktop esté ejecutándose antes de
+        continuar. Si no lo está, instálalo primero desde
+        <a
+          href="https://www.docker.com/products/docker-desktop"
+          target="_blank"
+          style="color: #d97706; text-decoration: underline"
+          >docker.com</a
+        >
+      </div>
+
+      <div class="steps">
+        <li>
+          <div class="number">1</div>
+          <div class="content">
+            <h3>Abre PowerShell como Administrador</h3>
+            <p>
+              Presiona Win + X y selecciona "Terminal de Windows (Admin)" o "PowerShell (Admin)"
+            </p>
+          </div>
+        </li>
+
+        <li>
+          <div class="number">2</div>
+          <div class="content">
+            <h3>Copia y pega este comando</h3>
+            <p>El siguiente comando descargará e instalará todo automáticamente:</p>
+            <div class="code-block">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <span id="command"
+                  >iex (New-Object
+                  System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Oguri-Dev/remote-generator/main/bootstrap-install.ps1')</span
+                >
+                <button class="copy-btn" onclick="copyCommand()">Copiar</button>
+              </div>
+            </div>
+            <p style="font-size: 12px; color: #999; margin-top: 8px">
+              ⚠️ Reemplaza 'tu-usuario/generador' con tu URL de repositorio real
+            </p>
+          </div>
+        </li>
+
+        <li>
+          <div class="number">3</div>
+          <div class="content">
+            <h3>Sigue las instrucciones</h3>
+            <p>
+              El script te pedirá las credenciales de MongoDB y luego instalará todo
+              automáticamente.
+            </p>
+            <p style="color: #999; font-size: 13px">
+              Tiempo estimado: 3-5 minutos (depende de tu conexión)
+            </p>
+          </div>
+        </li>
+      </div>
+
+      <div class="success">
+        <strong>✅ Después de la instalación:</strong><br />
+        La aplicación estará disponible en <strong>http://localhost</strong><br />
+        MongoDB y MQTT se crean automáticamente con datos persistentes.
+      </div>
+
+      <div class="info-box">
+        <strong>💾 Datos Persistentes</strong>
+        MongoDB y MQTT Broker guardan los datos automáticamente. No se pierden al reiniciar los
+        contenedores.
+      </div>
+
+      <div class="download-section">
+        <h2>¿Necesitas más información?</h2>
+        <p>Descarga el archivo README para ver comandos útiles, solución de problemas y más.</p>
+        <button class="btn-primary" onclick="downloadFile()">📥 Descargar Guía Completa</button>
+      </div>
+
+      <div class="footer">
+        <p>Sistema de Control Remoto de Generador © 2025</p>
+        <p>
+          Documentación:
+          <a href="https://github.com/tu-usuario/generador" target="_blank" style="color: #667eea"
+            >Ver repositorio en GitHub</a
+          >
+        </p>
+      </div>
+    </div>
+
+    <script>
+      function copyCommand() {
+        const cmd = document.getElementById('command').textContent
+        navigator.clipboard.writeText(cmd).then(() => {
+          const btn = event.target
+          const originalText = btn.textContent
+          btn.textContent = '✓ Copiado'
+          btn.classList.add('copied')
+          setTimeout(() => {
+            btn.textContent = originalText
+            btn.classList.remove('copied')
+          }, 2000)
+        })
+      }
+
+      function downloadFile() {
+        // Crear un archivo README.txt para descargar
+        const content = `INSTALACIÓN DEL SISTEMA DE CONTROL DE GENERADOR
+=====================================================
+
+REQUISITOS:
+- Docker Desktop instalado y ejecutándose
+- Windows 10+ o Windows Server 2016+
+- Conexión a Internet
+- ~5GB de espacio en disco
+
+PASO A PASO:
+1. Abre PowerShell como Administrador (Win + X)
+2. Copia este comando:
+   iex (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/tu-usuario/generador/main/bootstrap-install.ps1')
+
+3. Presiona Enter y sigue las instrucciones
+
+DESPUÉS DE LA INSTALACIÓN:
+- Frontend: http://localhost
+- Backend: http://localhost:8099
+- MongoDB: localhost:27017
+- MQTT: localhost:1883 (WebSocket: 9001)
+
+COMANDOS ÚTILES:
+- Ver logs: docker-compose logs -f
+- Detener: docker-compose down
+- Reiniciar: docker-compose restart
+- Estado: docker-compose ps
+
+DATOS PERSISTENTES:
+MongoDB y MQTT guardan datos automáticamente en volúmenes Docker.
+Estos datos se mantienen al reiniciar los contenedores.
+
+¿PROBLEMAS?
+1. Verifica que Docker Desktop esté corriendo
+2. Ejecuta: docker info
+3. Revisa los logs: docker-compose logs
+4. Reinicia Docker Desktop si es necesario
+
+SOPORTE:
+Ver documentación: https://github.com/tu-usuario/generador`
+
+        const blob = new Blob([content], { type: 'text/plain' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'INSTALL-GUIDE.txt'
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }
+    </script>
+  </body>
+</html>
