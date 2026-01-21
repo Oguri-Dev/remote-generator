@@ -15,7 +15,7 @@ Write-Host ""
 
 $GITHUB_REPO = "https://github.com/Oguri-Dev/remote-generator.git"
 $GITHUB_RAW = "https://raw.githubusercontent.com/Oguri-Dev/remote-generator/main"
-$INSTALL_DIR = "$env:USERPROFILE\Desktop\Generador"
+$INSTALL_DIR = "C:\GeneradorControl"
 $BRANCH = "main"
 
 Write-Host "[*] Preparando instalacion..." -ForegroundColor Yellow
@@ -102,6 +102,31 @@ if (Test-Path $INSTALL_DIR) {
 }
 
 Write-Host "[OK] Proyecto descargado en: $INSTALL_DIR" -ForegroundColor Green
+Write-Host ""
+
+# ============================================================================
+# APLICAR RESTRICCIONES DE SEGURIDAD
+# ============================================================================
+
+Write-Host "[*] Aplicando restricciones de seguridad..." -ForegroundColor Yellow
+
+try {
+    # Obtener el usuario actual
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    
+    # Remover herencia de permisos
+    icacls $INSTALL_DIR /inheritance:d /Q 2>$null
+    
+    # Dar permisos completos solo al usuario actual
+    icacls $INSTALL_DIR /grant:r "$($currentUser):(F)" /Q 2>$null
+    
+    # Negar acceso a otros usuarios
+    icacls $INSTALL_DIR /deny "Users:(M)" /Q 2>$null
+    
+    Write-Host "[OK] Permisos restringidos (solo para: $currentUser)" -ForegroundColor Green
+} catch {
+    Write-Host "[!] Advertencia: No se pudieron aplicar permisos restringidos" -ForegroundColor Yellow
+}
 Write-Host ""
 
 # ============================================================================

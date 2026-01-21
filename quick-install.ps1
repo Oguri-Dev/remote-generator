@@ -8,7 +8,7 @@ Write-Host "    INSTALACION AUTOMATICA - Sistema Control Generador`n" -Foregroun
 Write-Host "====================================================================`n" -ForegroundColor Cyan
 
 $GITHUB_REPO = "https://github.com/Oguri-Dev/remote-generator.git"
-$INSTALL_DIR = "$env:USERPROFILE\Desktop\Generador"
+$INSTALL_DIR = "C:\GeneradorControl"
 $BRANCH = "main"
 
 # Verificar Docker
@@ -47,6 +47,26 @@ if (Test-Path $INSTALL_DIR) {
     cd $INSTALL_DIR
 }
 Write-Host "OK - Proyecto descargado: $INSTALL_DIR" -ForegroundColor Green
+
+# Restringir permisos de la carpeta
+Write-Host "`nAplicando restricciones de seguridad..." -ForegroundColor Yellow
+try {
+    # Obtener el usuario actual
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    
+    # Remover herencia de permisos
+    icacls $INSTALL_DIR /inheritance:d /Q 2>$null
+    
+    # Dar permisos completos solo al usuario actual
+    icacls $INSTALL_DIR /grant:r "$($currentUser):(F)" /Q 2>$null
+    
+    # Negar acceso a otros usuarios
+    icacls $INSTALL_DIR /deny "Users:(M)" /Q 2>$null
+    
+    Write-Host "OK - Permisos restringidos (solo para: $currentUser)" -ForegroundColor Green
+} catch {
+    Write-Host "Advertencia: No se pudieron aplicar permisos restringidos" -ForegroundColor Yellow
+}
 
 # Configurar credenciales
 Write-Host "`n[4/5] Configuracion MongoDB" -ForegroundColor Yellow

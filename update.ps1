@@ -1,6 +1,6 @@
 # ============================================================================
 # SCRIPT DE ACTUALIZACION - Sistema Control Generador
-# Actualiza el codigo sin perder datos de MongoDB
+# Actualiza codigo sin perder datos - Instalacion en C:\GeneradorControl
 # ============================================================================
 
 Write-Host "====================================================================" -ForegroundColor Cyan
@@ -8,7 +8,7 @@ Write-Host "    ACTUALIZACION DEL SISTEMA - Control Generador" -ForegroundColor 
 Write-Host "====================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$INSTALL_DIR = "$env:USERPROFILE\Desktop\Generador"
+$INSTALL_DIR = "C:\GeneradorControl"
 
 # Verificar que existe la instalacion
 if (-not (Test-Path $INSTALL_DIR)) {

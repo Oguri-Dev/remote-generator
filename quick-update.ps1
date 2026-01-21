@@ -3,7 +3,7 @@
 
 Write-Host "Actualizando Sistema Control Generador...`n" -ForegroundColor Cyan
 
-$INSTALL_DIR = "$env:USERPROFILE\Desktop\Generador"
+$INSTALL_DIR = "C:\GeneradorControl"
 
 if (-not (Test-Path $INSTALL_DIR)) {
     Write-Host "ERROR: Instalacion no encontrada en $INSTALL_DIR" -ForegroundColor Red

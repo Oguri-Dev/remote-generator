@@ -12,7 +12,7 @@ echo     ACTUALIZACION DEL SISTEMA - Control Generador
 echo ====================================================================
 echo.
 
-set INSTALL_DIR=%USERPROFILE%\Desktop\Generador
+set INSTALL_DIR=C:\GeneradorControl
 
 if not exist "%INSTALL_DIR%" (
     echo [ERROR] No se encontro instalacion en: %INSTALL_DIR%
