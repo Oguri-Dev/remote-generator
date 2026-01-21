@@ -3,6 +3,7 @@ package ws
 import (
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -36,12 +37,37 @@ func NewHub(allowedOrigin string) *Hub {
 	return &Hub{
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				if allowedOrigin == "" {
+				// En producción, permitir conexiones desde localhost y desde el mismo host
+				// En desarrollo, ser más permisivo
+				origin := r.Header.Get("Origin")
+				
+				// Permitir orígenes comunes
+				allowedOrigins := []string{
+					"http://localhost",
+					"http://localhost:80",
+					"http://localhost:3000",
+					"http://localhost:3069",
+					"http://localhost:8080",
+					"http://127.0.0.1",
+					"http://127.0.0.1:80",
+					"http://127.0.0.1:3000",
+					"http://127.0.0.1:3069",
+					allowedOrigin, // También permitir el del .env
+				}
+				
+				// Verificar si el origen está en la lista
+				for _, allowed := range allowedOrigins {
+					if origin == allowed {
+						return true
+					}
+				}
+				
+				// En desarrollo, permitir todos los orígenes (comentar en producción)
+				if os.Getenv("ENVIRONMENT") == "development" {
 					return true
 				}
-				// Permite el mismo host o el que le digas (útil en dev)
-				origin := r.Header.Get("Origin")
-				return origin == allowedOrigin
+				
+				return false
 			},
 		},
 		clients: make(map[*client]struct{}),
