@@ -12,6 +12,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// RelayConfig define la configuración de un relay individual
+type RelayConfig struct {
+	ID      string `bson:"id"      json:"id"`
+	Name    string `bson:"name"    json:"name"`
+	Type    string `bson:"type"    json:"type"` // "generador", "rack", "modulo", "manual", "disabled"
+	Enabled bool   `bson:"enabled" json:"enabled"`
+}
+
 type Config struct {
 	Ipplaca  string `bson:"ipplaca"  json:"ipplaca"`
 	Idplaca  int    `bson:"idplaca"  json:"idplaca"`
@@ -20,11 +28,25 @@ type Config struct {
 	Passmqtt string `bson:"passmqtt" json:"passmqtt"`
 	Topic    string `bson:"topic"    json:"topic"`
 
-	// Mapeo de funciones a IDs de relay
-	RelayGenerador     string `bson:"relay_generador"      json:"relay_generador"`
-	RelayRackMonitoreo string `bson:"relay_rack_monitoreo" json:"relay_rack_monitoreo"`
-	RelayModulo1       string `bson:"relay_modulo1"        json:"relay_modulo1"`
-	RelayModulo2       string `bson:"relay_modulo2"        json:"relay_modulo2"`
+	// Configuración dinámica de los 8 relays
+	Relays []RelayConfig `bson:"relays" json:"relays"`
+
+	// Relay para modo manual (por defecto "8")
+	RelayManual string `bson:"relay_manual" json:"relay_manual"`
+}
+
+// GetDefaultRelays retorna la configuración por defecto de los 8 relays
+func GetDefaultRelays() []RelayConfig {
+	return []RelayConfig{
+		{ID: "1", Name: "Generador", Type: "generador", Enabled: true},
+		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true},
+		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true},
+		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true},
+		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false},
+		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false},
+		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false},
+		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false},
+	}
 }
 
 type Diff struct {
@@ -40,6 +62,44 @@ var (
 )
 
 func Get() Config { mu.RLock(); defer mu.RUnlock(); return cfg }
+
+// GetRelaysByType retorna todos los relays de un tipo específico
+func GetRelaysByType(relayType string) []RelayConfig {
+	mu.RLock()
+	defer mu.RUnlock()
+	var result []RelayConfig
+	for _, r := range cfg.Relays {
+		if r.Type == relayType && r.Enabled {
+			result = append(result, r)
+		}
+	}
+	return result
+}
+
+// GetEnabledRelays retorna todos los relays habilitados
+func GetEnabledRelays() []RelayConfig {
+	mu.RLock()
+	defer mu.RUnlock()
+	var result []RelayConfig
+	for _, r := range cfg.Relays {
+		if r.Enabled && r.Type != "disabled" {
+			result = append(result, r)
+		}
+	}
+	return result
+}
+
+// GetRelayByID retorna un relay por su ID
+func GetRelayByID(id string) *RelayConfig {
+	mu.RLock()
+	defer mu.RUnlock()
+	for _, r := range cfg.Relays {
+		if r.ID == id {
+			return &r
+		}
+	}
+	return nil
+}
 
 func onChange(fn func(Config, Diff)) { subscribers = append(subscribers, fn) }
 
@@ -84,8 +144,19 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 		FindOne(ctx, bson.M{}).Decode(&c)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		// si no existe, creamos una doc por defecto
-		c = Config{Topic: "generador/estado"}
+		c = Config{
+			Topic:       "generador/estado",
+			Relays:      GetDefaultRelays(),
+			RelayManual: "8",
+		}
 		_, err = s.client.Database(s.dbName).Collection(s.collName).InsertOne(ctx, c)
+	}
+	// Si no tiene relays configurados, usar defaults
+	if len(c.Relays) == 0 {
+		c.Relays = GetDefaultRelays()
+	}
+	if c.RelayManual == "" {
+		c.RelayManual = "8"
 	}
 	if err != nil {
 		return Config{}, err
@@ -95,28 +166,38 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 }
 
 func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
-	// 1) Documento normalizado (llaves nuevas en minúscula)
-	doc := bson.M{
-		"ipplaca":              in.Ipplaca,
-		"idplaca":              in.Idplaca,
-		"ipbroker":             in.Ipbroker,
-		"usermqtt":             in.Usermqtt,
-		"passmqtt":             in.Passmqtt,
-		"topic":                in.Topic,
-		"relay_generador":      in.RelayGenerador,
-		"relay_rack_monitoreo": in.RelayRackMonitoreo,
-		"relay_modulo1":        in.RelayModulo1,
-		"relay_modulo2":        in.RelayModulo2,
+	// Si no tiene relays, usar defaults
+	if len(in.Relays) == 0 {
+		in.Relays = GetDefaultRelays()
+	}
+	if in.RelayManual == "" {
+		in.RelayManual = "8"
 	}
 
-	// 2) Llaves legacy a eliminar (las que te aparecieron duplicadas)
+	// 1) Documento normalizado
+	doc := bson.M{
+		"ipplaca":      in.Ipplaca,
+		"idplaca":      in.Idplaca,
+		"ipbroker":     in.Ipbroker,
+		"usermqtt":     in.Usermqtt,
+		"passmqtt":     in.Passmqtt,
+		"topic":        in.Topic,
+		"relays":       in.Relays,
+		"relay_manual": in.RelayManual,
+	}
+
+	// 2) Llaves legacy a eliminar
 	legacyUnset := bson.M{
-		"IpPlaca":  1,
-		"IdPlaca":  1,
-		"IpBroker": 1,
-		"UserMqtt": 1,
-		"PassMqtt": 1,
-		"Topic":    1, // por si quedó con mayúscula
+		"IpPlaca":              1,
+		"IdPlaca":              1,
+		"IpBroker":             1,
+		"UserMqtt":             1,
+		"PassMqtt":             1,
+		"Topic":                1,
+		"relay_generador":      1,
+		"relay_rack_monitoreo": 1,
+		"relay_modulo1":        1,
+		"relay_modulo2":        1,
 	}
 
 	// 3) Upsert de la única config + limpieza de legacy

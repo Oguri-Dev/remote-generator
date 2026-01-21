@@ -1,76 +1,54 @@
 <template>
   <div class="personal-dashboard personal-dashboard-v3">
     <div class="columns">
+      <!-- Columna Izquierda: Estados de Relés -->
       <div class="column is-6">
         <div class="columns is-multiline is-flex-tablet-p">
-          <!-- Estado del Generador -->
-          <div class="column is-11">
+          <!-- Banner de Modo Manual Activo -->
+          <div v-if="isManualMode" class="column is-11">
+            <div class="dashboard-card is-welcome" style="background-color: #ff9f43; color: white;">
+              <div class="welcome-title">
+                <h3 class="dark-inverted" style="color: white;">⚠️ Modo Manual Activo</h3>
+                <h2 style="color: white;">El generador fue encendido físicamente. Los controles remotos están
+                  bloqueados.</h2>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tarjetas de Estado (Dinámicas) -->
+          <div v-for="relay in enabledRelays" :key="relay.id" class="column is-11">
             <div class="dashboard-card is-welcome">
               <div class="welcome-title">
-                <h3 class="dark-inverted">Estado Actual Generador</h3>
+                <h3 class="dark-inverted">Estado Actual {{ relay.name }}</h3>
                 <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
-                <h2 v-else-if="isManualMode" class="text-success">Estado actual: Encendido Manualmente</h2>
-                <h2 v-else :class="{ 'text-success': isGeneratorOn, 'text-warning': !isGeneratorOn }">
-                  Estado actual: {{ isGeneratorOn ? 'ON' : 'OFF' }}
+                <h2 v-else :class="{
+                  'text-success': placaStore.relays[relay.id] === 'ON',
+                  'text-warning': placaStore.relays[relay.id] !== 'ON'
+                }">
+                  Estado actual: {{ placaStore.relays[relay.id] || "Esperando datos..." }}
                 </h2>
               </div>
             </div>
           </div>
 
-          <!-- Estado Rack Monitoreo -->
-          <div class="column is-11">
+          <!-- Mensaje cuando no hay relés configurados -->
+          <div v-if="enabledRelays.length === 0" class="column is-11">
             <div class="dashboard-card is-welcome">
               <div class="welcome-title">
-                <h3 class="dark-inverted">Estado Actual Rack Monitoreo</h3>
-                <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
-                <h2 v-else-if="isManualMode" class="text-success">Estado actual: Encendido Manualmente</h2>
-                <h2 v-else
-                  :class="{ 'text-success': placaStore.relays['2'] === 'ON', 'text-warning': placaStore.relays['2'] === 'OFF' }">
-                  Estado actual: {{ placaStore.relays["2"] || "Esperando datos..." }}
-                </h2>
-              </div>
-            </div>
-          </div>
-
-          <!-- Estado Módulo 1 -->
-          <div class="column is-11">
-            <div class="dashboard-card is-welcome">
-              <div class="welcome-title">
-                <h3 class="dark-inverted">Estado Actual Módulo 1</h3>
-                <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
-                <h2 v-else-if="isManualMode" class="text-success">Estado actual: Encendido Manualmente</h2>
-                <h2 v-else
-                  :class="{ 'text-success': placaStore.relays['3'] === 'ON', 'text-warning': placaStore.relays['3'] === 'OFF' }">
-                  Estado actual: {{ placaStore.relays["3"] || "Esperando datos..." }}
-                </h2>
-              </div>
-            </div>
-          </div>
-
-          <!-- Estado Módulo 2 -->
-          <div class="column is-11">
-            <div class="dashboard-card is-welcome">
-              <div class="welcome-title">
-                <h3 class="dark-inverted">Estado Actual Módulo 2</h3>
-                <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
-                <h2 v-else-if="isManualMode" class="text-success">Estado actual: Encendido Manualmente</h2>
-                <h2 v-else
-                  :class="{ 'text-success': placaStore.relays['4'] === 'ON', 'text-warning': placaStore.relays['4'] === 'OFF' }">
-                  Estado actual: {{ placaStore.relays["4"] || "Esperando datos..." }}
-                </h2>
+                <h3 class="dark-inverted">Sin Relés Configurados</h3>
+                <h2 class="text-warning">Configure los relés en la sección de Configuración</h2>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Controles -->
+      <!-- Columna Derecha: Controles -->
       <div class="column is-5">
         <div class="columns is-multiline is-flex-tablet-p">
           <div class="column is-12">
             <div class="stats-wrapper">
               <div class="columns is-multiline is-flex-tablet-p">
-
                 <!-- Estado de la Placa -->
                 <div class="column is-12">
                   <div class="dashboard-card is-welcome">
@@ -81,7 +59,6 @@
                       <div class="column is-6">
                         <h2 :class="{
                           'text-success': estadoPlaca === 'Conectada',
-
                           'text-warning-breathing': estadoPlaca === 'Intentando conexión',
                           'text-danger-breathing': estadoPlaca === 'Desconectada'
                         }">
@@ -113,61 +90,60 @@
                   </div>
                 </div>
                 <!-- End Estado de la Placa -->
-                <!-- Control Generador -->
-                <div class="column is-12">
+                <!-- Control Generador (Dinámico) -->
+                <div v-if="generatorRelays.length > 0" class="column is-12">
                   <div class="dashboard-card is-welcome">
                     <div class="welcome-title">
                       <h2>Control Generador</h2>
                     </div>
-                    <div class="columns">
-                      <div class="button-wrap column is-6">
-                        <!-- Botón de Encender/Apagar Generador -->
-                        <VButton type="submit" color="primary" bold raised fullwidth @click="toggleRelay('1')"
+                    <div class="columns is-multiline">
+                      <div v-for="relay in generatorRelays" :key="relay.id" class="button-wrap column is-6">
+                        <VButton type="submit" color="primary" bold raised fullwidth @click="toggleRelay(relay.id)"
                           :disabled="!canToggleGenerator">
-                          {{ placaStore.relays['1'] === 'ON' ? 'Apagar Generador' : 'Encender Generador' }}
+                          {{ placaStore.relays[relay.id] === 'ON' ? `Apagar ${relay.name}` : `Encender
+                          ${relay.name}` }}
                         </VButton>
                       </div>
                     </div>
                   </div>
                 </div>
-                <!--End Control Generador -->
-                <!-- Control Equipamiento Monitoreo -->
-                <div class="column is-12">
+                <!-- End Control Generador -->
+                <!-- Control Equipamiento Monitoreo (Dinámico) -->
+                <div v-if="hasEquipmentRelays" class="column is-12">
                   <div class="dashboard-card is-welcome">
                     <div class="welcome-title">
                       <h2>Control Equipamiento Monitoreo</h2>
                     </div>
-                    <div class="columns">
-                      <div class="button-wrap column is-6">
-                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent('2')"
-                          :disabled="isButtonDisabled('2')">
-                          Reiniciar Rack Monitoreo
-                        </VButton>
-                      </div>
-                      <div class="button-wrap column is-6">
-                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent('3')"
-                          :disabled="isButtonDisabled('3')">
-                          Reiniciar Módulo 1
+                    <!-- Botones Rack -->
+                    <div v-if="rackRelays.length > 0" class="columns is-multiline">
+                      <div v-for="relay in rackRelays" :key="relay.id" class="button-wrap column is-6">
+                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent(relay.id)"
+                          :disabled="isButtonDisabled(relay.id)">
+                          Reiniciar {{ relay.name }}
                         </VButton>
                       </div>
                     </div>
-                    <div class="columns">
-                      <div class="button-wrap column is-6">
-                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent('all')"
-                          :disabled="areButtonsDisabled || areAllModulesRestarting">
-                          Reiniciar Todo
+                    <!-- Botones Módulos -->
+                    <div v-if="moduleRelays.length > 0" class="columns is-multiline">
+                      <div v-for="relay in moduleRelays" :key="relay.id" class="button-wrap column is-6">
+                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent(relay.id)"
+                          :disabled="isButtonDisabled(relay.id)">
+                          Reiniciar {{ relay.name }}
                         </VButton>
                       </div>
+                    </div>
+                    <!-- Botón Reiniciar Todo -->
+                    <div v-if="equipmentRelays.length > 1" class="columns">
                       <div class="button-wrap column is-6">
-                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent('4')"
-                          :disabled="isButtonDisabled('4')">
-                          Reiniciar Módulo 2
+                        <VButton type="submit" color="primary" bold raised fullwidth @click="restartComponent('all')"
+                          :disabled="areButtonsDisabled || areAllEquipmentRestarting">
+                          Reiniciar Todo
                         </VButton>
                       </div>
                     </div>
                   </div>
                 </div>
-                <!--End Control Equipamiento Monitoreo -->
+                <!-- End Control Equipamiento Monitoreo -->
                 <!-- Progreso de sequences -->
                 <div class="column is-12">
                   <div class="dashboard-card is-welcome">
@@ -176,16 +152,14 @@
                     </div>
                     <div class="welcome-progress">
                       <template v-if="activeSequences.length > 0">
-                        <div v-for="(relayId) in activeSequences" :key="relayId" class="progress-item">
+                        <div v-for="relayId in activeSequences" :key="relayId" class="progress-item">
                           <div class="progress-row">
-                            <p style="font-size: x-large; "><strong>{{
-                              relayNames[relayId]
-                                }}:</strong> {{
-                                  mqttStore.sequenceState[relayId] }}...
-                              <ProgressSpinner style=" width: 30px; height: 25px;" strokeWidth="8"
-                                animationDuration="2s" aria-label="Custom ProgressSpinner" />
+                            <p style="font-size: x-large;">
+                              <strong>{{ getRelayName(relayId) }}:</strong>
+                              {{ mqttStore.sequenceState[relayId] }}...
+                              <ProgressSpinner style="width: 30px; height: 25px;" strokeWidth="8" animationDuration="2s"
+                                aria-label="Custom ProgressSpinner" />
                             </p>
-
                           </div>
                         </div>
                       </template>
@@ -199,49 +173,86 @@
           </div>
         </div>
       </div>
-
       <!-- End Controles -->
     </div>
+
+    <!-- Modal de confirmación para encender/apagar generador -->
+    <VModal :open="showGeneratorConfirm" :title="confirmTitle" @close="showGeneratorConfirm = false" actions="center"
+      noclosebutton>
+      <template #content>
+        <div class="has-text-centered" style="padding: 2rem;">
+          <h2 style="font-size: 1.8rem; margin-bottom: 1rem;">{{ confirmMessage }}</h2>
+        </div>
+      </template>
+      <template #cancel><span style="display: none;"></span></template>
+      <template #action>
+        <VButton :color="pendingAction === 'ON' ? 'success' : 'danger'" @click="confirmToggleRelay" bold raised
+          style="font-size: 1.2rem; padding: 1rem 2rem;">
+          {{ pendingAction === 'ON' ? 'Sí, Encender' : 'Sí, Apagar' }}
+        </VButton>
+        <VButton color="light" @click="showGeneratorConfirm = false" bold
+          style="font-size: 1.2rem; padding: 1rem 2rem;">
+          Cancelar
+        </VButton>
+      </template>
+    </VModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useMqttStore } from "/@src/stores/MqttStore";
 import { usePlacaStore } from "/@src/stores/PlacaStore";
+import { useConfigStore } from "/@src/stores/ConfigStore";
 import { sendActionToBackend } from "/@src/services/mqttService";
 import ProgressSpinner from 'primevue/progressspinner';
 
 const mqttStore = useMqttStore();
 const placaStore = usePlacaStore();
+const configStore = useConfigStore();
 
-// Conectar WebSocket al montar
-onMounted(() => {
+// Cargar configuración y conectar WebSocket al montar
+onMounted(async () => {
+  await configStore.loadConfig();
   mqttStore.connectToWebSocket();
 });
 
-//Estado de la Placa y del Broker
+// ===== Relés por tipo (desde ConfigStore) =====
+const enabledRelays = computed(() => configStore.enabledRelays);
+const generatorRelays = computed(() => configStore.generadores);
+const rackRelays = computed(() => configStore.racks);
+const moduleRelays = computed(() => configStore.modulos);
+
+// Relés de equipamiento (rack + módulos)
+const equipmentRelays = computed(() => [...rackRelays.value, ...moduleRelays.value]);
+const hasEquipmentRelays = computed(() => equipmentRelays.value.length > 0);
+
+// ===== Estado de Conexión =====
 const estadoPlaca = computed(() => placaStore.connectionStatus);
 const estadoBroker = computed(() => (mqttStore.isConnected ? "Conectado" : "Conectando..."));
 
-//  Verificar estados individuales
-const isManualMode = computed(() => placaStore.relays["8"] === "ON");
-const isGeneratorOn = computed(() => placaStore.relays["1"] === "ON");
+// ===== Verificar estados individuales =====
+// Relés de tipo "manual" - sensor de modo manual físico
+const manualRelays = computed(() => configStore.enabledRelays.filter(r => r.type === 'manual'));
+const isManualMode = computed(() =>
+  manualRelays.value.some(relay => placaStore.relays[relay.id] === "ON")
+);
+const isGeneratorOn = computed(() => {
+  // Verificar si algún generador está encendido
+  // Si no hay generadores configurados, considerar como "encendido" para no bloquear
+  if (generatorRelays.value.length === 0) return true;
+  return generatorRelays.value.some(relay => placaStore.relays[relay.id] === "ON");
+});
 const isSystemConnected = computed(() => placaStore.connectionStatus === "Conectada" && mqttStore.isConnected);
 
-//  Verificar si el generador está ejecutando una secuencia
-const isSequenceRunning = computed(() =>
-  mqttStore.sequenceState["1"] === "starting" || mqttStore.sequenceState["1"] === "stopping"
-);
-
-// Verificar si hay CUALQUIER secuencia activa (módulos o generador)
+// ===== Control de secuencias =====
 const isAnySequenceActive = computed(() =>
   Object.values(mqttStore.sequenceState).some(state => state !== "")
 );
 
-// Deshabilitar TODOS los botones si hay cualquier secuencia activa
+// Deshabilitar botones de equipamiento si no hay conexión, hay secuencia activa, o está en modo manual
 const areButtonsDisabled = computed(() =>
-  isAnySequenceActive.value || !isSystemConnected.value || !isGeneratorOn.value || !estadoPlaca.value
+  isAnySequenceActive.value || !isSystemConnected.value || isManualMode.value
 );
 
 // Habilitar botón del generador solo si no hay NINGUNA secuencia activa
@@ -250,34 +261,66 @@ const canToggleGenerator = computed(() =>
 );
 
 const isButtonDisabled = (relayId: string) => {
-  return mqttStore.sequenceState[relayId] !== "" || areButtonsDisabled.value;
+  // Verificar si hay una secuencia activa para este relay específico
+  const sequenceState = mqttStore.sequenceState[relayId];
+  const hasActiveSequence = sequenceState !== undefined && sequenceState !== "";
+  return hasActiveSequence || areButtonsDisabled.value;
 };
 
-// Función para encender/apagar el Generador
-const toggleRelay = async (relayId: string) => {
+// Verificar si todos los equipos están reiniciando
+const areAllEquipmentRestarting = computed(() => {
+  return equipmentRelays.value.every(relay => mqttStore.sequenceState[relay.id] !== "");
+});
+
+// ===== Modal de confirmación del generador =====
+const showGeneratorConfirm = ref(false);
+const pendingRelayId = ref<string | null>(null);
+const pendingAction = ref<string>('');
+
+const confirmTitle = computed(() =>
+  pendingAction.value === 'ON' ? '⚡ Confirmar Encendido' : '⚠️ Confirmar Apagado'
+);
+
+const confirmMessage = computed(() => {
+  const relayName = pendingRelayId.value ? getRelayName(pendingRelayId.value) : 'Generador';
+  return pendingAction.value === 'ON'
+    ? `¿Estás seguro de ENCENDER ${relayName}?`
+    : `¿Estás seguro de APAGAR ${relayName}?`;
+});
+
+const confirmDescription = computed(() =>
+  pendingAction.value === 'ON'
+    ? 'El generador se encenderá de forma remota.'
+    : 'El generador se apagará de forma remota. Asegúrate de que no haya cargas críticas conectadas.'
+);
+
+// ===== Funciones de control =====
+const toggleRelay = (relayId: string) => {
   if (!canToggleGenerator.value) return;
-  const newState = placaStore.relays[relayId] === "ON" ? "OFF" : "ON";
-  await sendActionToBackend(relayId, newState);
+  pendingRelayId.value = relayId;
+  pendingAction.value = placaStore.relays[relayId] === "ON" ? "OFF" : "ON";
+  showGeneratorConfirm.value = true;
 };
 
-// Función para reiniciar módulos
+const confirmToggleRelay = async () => {
+  if (!pendingRelayId.value) return;
+  await sendActionToBackend(pendingRelayId.value, pendingAction.value);
+  showGeneratorConfirm.value = false;
+  pendingRelayId.value = null;
+  pendingAction.value = '';
+};
+
 const restartComponent = async (component: string) => {
   if (areButtonsDisabled.value) return;
   await sendActionToBackend(component, "restart");
 };
 
-const areAllModulesRestarting = computed(() => {
-  return ["2", "3", "4"].every((relayId) => mqttStore.sequenceState[relayId] !== "");
-});
-// Mapeo de nombres de los dispositivos según el relé
-const relayNames: Record<string, string> = {
-  "1": "Generador",
-  "2": "Rack de Monitoreo",
-  "3": "Módulo 1",
-  "4": "Módulo 2",
+// ===== Helper para nombres de relés =====
+const getRelayName = (relayId: string): string => {
+  return configStore.getRelayName(relayId);
 };
 
-// Computed Property para obtener solo los relés con secuencias activas
+// ===== Secuencias activas =====
 const activeSequences = computed(() => {
   return Object.keys(mqttStore.sequenceState).filter(relayId => mqttStore.sequenceState[relayId] !== "");
 });

@@ -23,36 +23,45 @@ func SetConfigAPI(api *ConfigAPI)    { configAPI = api }
 // ===== Estado de secuencia en memoria con worker pattern =====
 
 type sequenceTask struct {
-	RelayID string
-	Action  string // "ON", "OFF", "RESTART"
-	Delay   int
+	RelayID  string
+	Action   string // "ON", "OFF", "RESTART"
+	Delay    int
+	Username string // Usuario que ejecutó la acción
 }
 
 var (
-	sequenceState = map[string]string{
-		"1": "", // Generador
-		"2": "", // Rack Monitoreo
-		"3": "", // Módulo 1
-		"4": "", // Módulo 2
-	}
-	stateMutex sync.RWMutex
-	taskQueue  = make(chan sequenceTask, 20)
+	sequenceState = make(map[string]string) // Dinámico, se inicializa desde config
+	stateMutex    sync.RWMutex
+	taskQueue     = make(chan sequenceTask, 20)
 )
+
+// Inicializar el estado de secuencia para todos los relays habilitados
+func initSequenceState() {
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
+	// Limpiar y reinicializar con todos los relays de la config
+	sequenceState = make(map[string]string)
+	for i := 1; i <= 8; i++ {
+		sequenceState[fmt.Sprintf("%d", i)] = ""
+	}
+}
 
 // Worker que procesa tareas de forma thread-safe
 func init() {
+	initSequenceState()
 	go sequenceWorker()
 }
 
 func sequenceWorker() {
-	relayNames := map[string]string{
-		"1": "Generador",
-		"2": "Rack Monitoreo",
-		"3": "Módulo 1",
-		"4": "Módulo 2",
-	}
-
 	for task := range taskQueue {
+		// Obtener nombre del relay desde config
+		relayConfig := config.GetRelayByID(task.RelayID)
+		relayName := "Relay " + task.RelayID
+		if relayConfig != nil {
+			relayName = relayConfig.Name
+		}
+
 		// Actualizar estado
 		stateMutex.Lock()
 		switch task.Action {
@@ -68,12 +77,12 @@ func sequenceWorker() {
 
 		// Registrar actividad
 		if configAPI != nil {
-			relayName := relayNames[task.RelayID]
-			if relayName == "" {
-				relayName = "Relay " + task.RelayID
-			}
 			description := fmt.Sprintf("%s - %s", relayName, task.Action)
-			configAPI.LogActivity(task.RelayID, relayName, task.Action, description, "system")
+			username := task.Username
+			if username == "" {
+				username = "system"
+			}
+			configAPI.LogActivity(task.RelayID, relayName, task.Action, description, username)
 		}
 
 		// Enviar comando MQTT
@@ -176,71 +185,60 @@ func sendMQTTCommand(relayID string, status string, delaySec int) error {
 // ===== Secuencias usando taskQueue =====
 
 func startSequence() {
-	cfg := config.Get()
-	// Valores por defecto si no están configurados
-	relayGen := cfg.RelayGenerador
-	if relayGen == "" {
-		relayGen = "1"
-	}
-	relayRack := cfg.RelayRackMonitoreo
-	if relayRack == "" {
-		relayRack = "2"
-	}
-	relayMod1 := cfg.RelayModulo1
-	if relayMod1 == "" {
-		relayMod1 = "3"
-	}
-	relayMod2 := cfg.RelayModulo2
-	if relayMod2 == "" {
-		relayMod2 = "4"
-	}
+	// Obtener relays habilitados por tipo
+	generatorRelays := config.GetRelaysByType("generador")
+	rackRelays := config.GetRelaysByType("rack")
+	moduleRelays := config.GetRelaysByType("modulo")
 
-	// Encender en orden: Generador -> Rack -> Módulo1 -> Módulo2
-	taskQueue <- sequenceTask{RelayID: relayGen, Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayRack, Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayMod1, Action: "ON", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayMod2, Action: "ON", Delay: 0}
+	// Encender en orden: Generadores -> Racks -> Módulos
+	for _, r := range generatorRelays {
+		taskQueue <- sequenceTask{RelayID: r.ID, Action: "ON", Delay: 0}
+	}
+	for _, r := range rackRelays {
+		taskQueue <- sequenceTask{RelayID: r.ID, Action: "ON", Delay: 0}
+	}
+	for _, r := range moduleRelays {
+		taskQueue <- sequenceTask{RelayID: r.ID, Action: "ON", Delay: 0}
+	}
 }
 
 func stopSequence() {
-	cfg := config.Get()
-	// Valores por defecto si no están configurados
-	relayGen := cfg.RelayGenerador
-	if relayGen == "" {
-		relayGen = "1"
-	}
-	relayRack := cfg.RelayRackMonitoreo
-	if relayRack == "" {
-		relayRack = "2"
-	}
-	relayMod1 := cfg.RelayModulo1
-	if relayMod1 == "" {
-		relayMod1 = "3"
-	}
-	relayMod2 := cfg.RelayModulo2
-	if relayMod2 == "" {
-		relayMod2 = "4"
-	}
+	// Obtener relays habilitados por tipo
+	generatorRelays := config.GetRelaysByType("generador")
+	rackRelays := config.GetRelaysByType("rack")
+	moduleRelays := config.GetRelaysByType("modulo")
 
-	// Apagar en orden inverso: Módulo2 -> Módulo1 -> Rack -> Generador
-	taskQueue <- sequenceTask{RelayID: relayMod2, Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayMod1, Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayRack, Action: "OFF", Delay: 0}
-	taskQueue <- sequenceTask{RelayID: relayGen, Action: "OFF", Delay: 0}
+	// Apagar en orden inverso: Módulos -> Racks -> Generadores
+	for i := len(moduleRelays) - 1; i >= 0; i-- {
+		taskQueue <- sequenceTask{RelayID: moduleRelays[i].ID, Action: "OFF", Delay: 0}
+	}
+	for i := len(rackRelays) - 1; i >= 0; i-- {
+		taskQueue <- sequenceTask{RelayID: rackRelays[i].ID, Action: "OFF", Delay: 0}
+	}
+	for i := len(generatorRelays) - 1; i >= 0; i-- {
+		taskQueue <- sequenceTask{RelayID: generatorRelays[i].ID, Action: "OFF", Delay: 0}
+	}
 }
 
 // ===== HTTP Handlers =====
 
 // POST /mqtt/action
-// Body: { "relay_id":"1"|"2"|"3"|"4"|"all", "status":"ON"|"OFF" }
+// Body: { "relay_id":"1"|"2"|...|"8"|"all", "status":"ON"|"OFF"|"restart", "username":"..." }
 func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 	var cmd struct {
-		RelayID string `json:"relay_id"`
-		Status  string `json:"status"`
+		RelayID  string `json:"relay_id"`
+		Status   string `json:"status"`
+		Username string `json:"username"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 		http.Error(w, "❌ Error al leer la petición", http.StatusBadRequest)
 		return
+	}
+
+	// Usar "system" si no viene username
+	username := cmd.Username
+	if username == "" {
+		username = "system"
 	}
 
 	// Verificar si hay secuencia en curso (lectura thread-safe)
@@ -255,39 +253,84 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Secuencias
-	if cmd.RelayID == "1" && cmd.Status == "ON" {
-		go startSequence()
+	// Reiniciar TODO el equipamiento (racks + módulos) con secuencia de 2 segundos
+	if cmd.RelayID == "all" && cmd.Status == "restart" {
+		go restartAllEquipment()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("✅ Secuencia de encendido iniciada"))
-		return
-	}
-	if cmd.RelayID == "1" && cmd.Status == "OFF" {
-		go stopSequence()
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("✅ Secuencia de apagado iniciada"))
+		w.Write([]byte("✅ Secuencia de reinicio de equipamiento iniciada"))
 		return
 	}
 
-	// Reset all (2,3,4 con delays distintos)
-	if cmd.RelayID == "all" {
-		taskQueue <- sequenceTask{RelayID: "2", Action: "RESTART", Delay: 5}
-		taskQueue <- sequenceTask{RelayID: "3", Action: "RESTART", Delay: 7}
-		taskQueue <- sequenceTask{RelayID: "4", Action: "RESTART", Delay: 9}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("✅ Reset All enviado y en proceso"))
+	// Obtener configuración del relay
+	relayConfig := config.GetRelayByID(cmd.RelayID)
+	if relayConfig == nil {
+		http.Error(w, "❌ RelayID no encontrado en configuración", http.StatusBadRequest)
 		return
 	}
 
-	// Relays individuales 2/3/4 con DELAY=5s
-	if cmd.RelayID == "2" || cmd.RelayID == "3" || cmd.RelayID == "4" {
-		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5}
+	// Validar acción según tipo de relay
+	switch relayConfig.Type {
+	case "generador":
+		// Generadores: solo ON/OFF
+		if cmd.Status != "ON" && cmd.Status != "OFF" {
+			http.Error(w, "❌ Generadores solo aceptan ON/OFF", http.StatusBadRequest)
+			return
+		}
+		// Encender/Apagar generador individual
+		action := cmd.Status
+		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: action, Delay: 0, Username: username}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("✅ Comando ejecutado con DELAY"))
-		return
-	}
+		w.Write([]byte(fmt.Sprintf("✅ Generador %s: %s", relayConfig.Name, action)))
 
-	http.Error(w, "❌ RelayID no válido", http.StatusBadRequest)
+	case "rack", "modulo":
+		// Equipamiento: solo RESTART
+		if cmd.Status != "restart" {
+			http.Error(w, "❌ Equipamiento de monitoreo solo acepta restart", http.StatusBadRequest)
+			return
+		}
+		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5, Username: username}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("✅ Reiniciando %s", relayConfig.Name)))
+
+	case "manual":
+		// Manual: ON/OFF directo
+		if cmd.Status != "ON" && cmd.Status != "OFF" {
+			http.Error(w, "❌ Control manual solo acepta ON/OFF", http.StatusBadRequest)
+			return
+		}
+		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: cmd.Status, Delay: 0, Username: username}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("✅ Manual %s: %s", relayConfig.Name, cmd.Status)))
+
+	default:
+		http.Error(w, "❌ Tipo de relay no soportado o deshabilitado", http.StatusBadRequest)
+	}
+}
+
+// restartAllEquipment reinicia todos los racks y módulos con 2 segundos de diferencia
+func restartAllEquipment() {
+	rackRelays := config.GetRelaysByType("rack")
+	moduleRelays := config.GetRelaysByType("modulo")
+
+	// Combinar todos los equipos de monitoreo
+	allEquipment := append(rackRelays, moduleRelays...)
+
+	// Reiniciar cada uno con 2 segundos de diferencia entre comandos MQTT
+	// El delay es el tiempo que tarda el relay en volver a encenderse
+	for i, relay := range allEquipment {
+		delay := 5 // Delay para que el relay vuelva a encenderse
+		// Agregar tarea al queue - el worker las procesa secuencialmente
+		// y espera 5 segundos después de cada una
+		taskQueue <- sequenceTask{
+			RelayID: relay.ID,
+			Action:  "RESTART",
+			Delay:   delay,
+		}
+		// Pequeña pausa entre encolar tareas para mantener el orden
+		if i < len(allEquipment)-1 {
+			time.Sleep(2 * time.Second)
+		}
+	}
 }
 
 // GET /mqtt/sequence_state  →  { "sequenceState": { "1":"", "2":"", ... } }

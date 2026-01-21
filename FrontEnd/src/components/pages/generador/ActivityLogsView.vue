@@ -14,10 +14,6 @@
                 <i class="iconify" data-icon="feather:download"></i>
                 Exportar PDF
               </VButton>
-              <VButton color="warning" @click="showClearConfirm = true">
-                <i class="iconify" data-icon="feather:trash-2"></i>
-                Limpiar Historial
-              </VButton>
             </div>
           </div>
 

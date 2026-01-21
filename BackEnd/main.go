@@ -19,10 +19,16 @@ import (
 	"generador/ws"
 )
 
+// envConfig almacena las variables del .env con prioridad sobre el sistema
+var envConfig map[string]string
+
 func main() {
-	// Cargar variables de entorno desde .env
-	if err := godotenv.Load(); err != nil {
+	// Cargar variables de entorno desde .env con PRIORIDAD sobre variables del sistema
+	var err error
+	envConfig, err = godotenv.Read()
+	if err != nil {
 		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
+		envConfig = make(map[string]string)
 	}
 
 	log.Println("🚀 Iniciando servidor...")
@@ -148,10 +154,17 @@ func main() {
 	}
 }
 
+// envOr busca primero en .env, luego en variables del sistema, luego usa el default
 func envOr(k, def string) string {
+	// Prioridad 1: archivo .env
+	if v, ok := envConfig[k]; ok && v != "" {
+		return v
+	}
+	// Prioridad 2: variables del sistema
 	if v := os.Getenv(k); v != "" {
 		return v
 	}
+	// Prioridad 3: valor por defecto
 	return def
 }
 
