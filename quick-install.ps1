@@ -41,7 +41,7 @@ Write-Host "OK - Git detectado" -ForegroundColor Green
 Write-Host "`n[3/5] Descargando proyecto..." -ForegroundColor Yellow
 if (Test-Path $INSTALL_DIR) {
     cd $INSTALL_DIR
-    git pull origin $BRANCH 2>$null
+    git pull origin $BRANCH
 } else {
     git clone --branch $BRANCH $GITHUB_REPO $INSTALL_DIR
     cd $INSTALL_DIR
