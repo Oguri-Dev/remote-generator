@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -14,10 +15,11 @@ import (
 
 // RelayConfig define la configuración de un relay individual
 type RelayConfig struct {
-	ID      string `bson:"id"      json:"id"`
-	Name    string `bson:"name"    json:"name"`
-	Type    string `bson:"type"    json:"type"` // "generador", "rack", "modulo", "manual", "disabled"
-	Enabled bool   `bson:"enabled" json:"enabled"`
+	ID          string `bson:"id"           json:"id"`
+	Name        string `bson:"name"         json:"name"`
+	Type        string `bson:"type"         json:"type"` // "generador", "rack", "modulo", "manual", "disabled"
+	Enabled     bool   `bson:"enabled"      json:"enabled"`
+	InvertState bool   `bson:"invert_state" json:"invert_state"` // Si true: invierte ON/OFF para la secuencia
 }
 
 type Config struct {
@@ -38,15 +40,36 @@ type Config struct {
 // GetDefaultRelays retorna la configuración por defecto de los 8 relays
 func GetDefaultRelays() []RelayConfig {
 	return []RelayConfig{
-		{ID: "1", Name: "Generador", Type: "generador", Enabled: true},
-		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true},
-		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true},
-		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true},
-		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false},
-		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false},
-		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false},
-		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false},
+		{ID: "1", Name: "Generador", Type: "generador", Enabled: true, InvertState: false},
+		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true, InvertState: false},
+		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true, InvertState: false},
+		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true, InvertState: false},
+		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false, InvertState: false},
+		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false, InvertState: false},
+		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false, InvertState: false},
+		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false, InvertState: false},
 	}
+}
+
+// normalizeRelays garantiza que los relays siempre tengan los campos obligatorios
+// y que el flag invert_state se persista correctamente en Mongo.
+func normalizeRelays(relays []RelayConfig) []RelayConfig {
+	if len(relays) == 0 {
+		return GetDefaultRelays()
+	}
+
+	out := make([]RelayConfig, len(relays))
+	for i, r := range relays {
+		if r.ID == "" {
+			r.ID = fmt.Sprintf("%d", i+1)
+		}
+		if r.Type == "" {
+			r.Type = "disabled"
+		}
+		r.Enabled = r.Type != "disabled"
+		out[i] = r
+	}
+	return out
 }
 
 type Diff struct {
@@ -155,6 +178,7 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if len(c.Relays) == 0 {
 		c.Relays = GetDefaultRelays()
 	}
+	c.Relays = normalizeRelays(c.Relays)
 	if c.RelayManual == "" {
 		c.RelayManual = "8"
 	}
@@ -170,8 +194,20 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	if len(in.Relays) == 0 {
 		in.Relays = GetDefaultRelays()
 	}
+	in.Relays = normalizeRelays(in.Relays)
 	if in.RelayManual == "" {
 		in.RelayManual = "8"
+	}
+
+	relaysDoc := make([]bson.M, 0, len(in.Relays))
+	for _, r := range in.Relays {
+		relaysDoc = append(relaysDoc, bson.M{
+			"id":           r.ID,
+			"name":         r.Name,
+			"type":         r.Type,
+			"enabled":      r.Enabled,
+			"invert_state": r.InvertState,
+		})
 	}
 
 	// 1) Documento normalizado
@@ -182,7 +218,7 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		"usermqtt":     in.Usermqtt,
 		"passmqtt":     in.Passmqtt,
 		"topic":        in.Topic,
-		"relays":       in.Relays,
+		"relays":       relaysDoc,
 		"relay_manual": in.RelayManual,
 	}
 
