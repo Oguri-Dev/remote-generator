@@ -22,8 +22,8 @@
                 <h3 class="dark-inverted">Estado Actual {{ relay.name }}</h3>
                 <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
                 <h2 v-else :class="{
-                  'text-success': getRelayState(relay.id) === 'LOW' || getRelayState(relay.id) === 'ON',
-                  'text-warning': getRelayState(relay.id) !== 'LOW' && getRelayState(relay.id) !== 'ON'
+                  'text-success': getRelayState(relay.id) === 'Encendido',
+                  'text-warning': getRelayState(relay.id) === 'Apagado'
                 }">
                   Estado actual: {{ getRelayState(relay.id) || "Esperando datos..." }}
                 </h2>
@@ -324,10 +324,18 @@ const getRelayName = (relayId: string): string => {
 const getRelayState = (relayId: string): string => {
   // Prioridad: inputs (estado real del sensor)
   if (placaStore.inputs[relayId]) {
-    return placaStore.inputs[relayId];
+    const inputState = placaStore.inputs[relayId];
+    // Mapear HIGH/LOW a Encendido/Apagado
+    if (inputState === 'HIGH') return 'Encendido';
+    if (inputState === 'LOW') return 'Apagado';
+    return inputState;
   }
   // Fallback: relays (si no hay input disponible)
-  return placaStore.relays[relayId] || '';
+  const relayState = placaStore.relays[relayId] || '';
+  // Mapear ON/OFF a Encendido/Apagado
+  if (relayState === 'ON') return 'Encendido';
+  if (relayState === 'OFF') return 'Apagado';
+  return relayState;
 };
 
 // ===== Secuencias activas =====
