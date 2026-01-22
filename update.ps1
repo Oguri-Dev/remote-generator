@@ -27,6 +27,20 @@ if (-not (git --version 2>$null)) {
 Write-Host "[OK] Git detectado" -ForegroundColor Green
 
 Write-Host "`n[2/5] Descargando ultimos cambios..." -ForegroundColor Yellow
+# Respaldar mosquitto.conf local no rastreado para evitar errores de pull
+if (Test-Path "$INSTALL_DIR\mosquitto.conf") {
+    git ls-files --error-unmatch "mosquitto.conf" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        $backupName = "mosquitto.conf.local.bak"
+        Write-Host "   Se detecto mosquitto.conf local no rastreado. Respaldando en: $backupName" -ForegroundColor Yellow
+        try {
+            Rename-Item -Path "$INSTALL_DIR\mosquitto.conf" -NewName $backupName -Force
+        } catch {
+            Write-Host "[X] No se pudo respaldar mosquitto.conf" -ForegroundColor Red
+            exit 1
+        }
+    }
+}
 git fetch origin
 git pull origin main
 

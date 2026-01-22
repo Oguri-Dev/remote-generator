@@ -31,6 +31,7 @@ interface RelayConfig {
   type: string
   enabled: boolean
   invert_state?: boolean
+  input_id?: string
 }
 
 // estado actual y copia base para detectar cambios
@@ -49,14 +50,14 @@ let baseSnapshot: any = {}
 
 // Configuración por defecto de los 8 relays
 const defaultRelays: RelayConfig[] = [
-  { id: '1', name: 'Generador', type: 'generador', enabled: true, invert_state: false },
-  { id: '2', name: 'Rack Monitoreo', type: 'rack', enabled: true, invert_state: false },
-  { id: '3', name: 'Módulo 1', type: 'modulo', enabled: true, invert_state: false },
-  { id: '4', name: 'Módulo 2', type: 'modulo', enabled: true, invert_state: false },
-  { id: '5', name: 'Relay 5', type: 'disabled', enabled: false, invert_state: false },
-  { id: '6', name: 'Relay 6', type: 'disabled', enabled: false, invert_state: false },
-  { id: '7', name: 'Relay 7', type: 'disabled', enabled: false, invert_state: false },
-  { id: '8', name: 'Modo Manual', type: 'manual', enabled: false, invert_state: false },
+  { id: '1', name: 'Generador', type: 'generador', enabled: true, invert_state: false, input_id: '1' },
+  { id: '2', name: 'Rack Monitoreo', type: 'rack', enabled: true, invert_state: false, input_id: '2' },
+  { id: '3', name: 'Módulo 1', type: 'modulo', enabled: true, invert_state: false, input_id: '3' },
+  { id: '4', name: 'Módulo 2', type: 'modulo', enabled: true, invert_state: false, input_id: '4' },
+  { id: '5', name: 'Relay 5', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
+  { id: '6', name: 'Relay 6', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
+  { id: '7', name: 'Relay 7', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
+  { id: '8', name: 'Modo Manual', type: 'manual', enabled: false, invert_state: false, input_id: '8' },
 ]
 
 // compara estado actual vs base
@@ -260,6 +261,20 @@ onMounted(load)
                   <VControl>
                     <VCheckbox v-model="relay.invert_state" label="Invertir estado (cableado invertido)" />
                   </VControl>
+                </VField>
+
+                <VField label="Input de estado (sensor físico)">
+                  <div class="select is-fullwidth">
+                    <select v-model="relay.input_id">
+                      <option value="">Ninguno (sin sensor)</option>
+                      <option v-for="i in 8" :key="i" :value="String(i)">
+                        Input {{ i }}
+                      </option>
+                    </select>
+                  </div>
+                  <p class="help">
+                    Selecciona qué input físico monitorea el estado real de este relay.
+                  </p>
                 </VField>
               </div>
             </div>

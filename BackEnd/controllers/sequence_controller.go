@@ -149,6 +149,20 @@ func notifySequenceStateChange() {
 }
 
 func sendMQTTCommand(relayID string, status string, delaySec int) error {
+	// Obtener configuración del relay para verificar si está invertido
+	cfg := config.Get()
+	relayConfig := config.GetRelayByID(relayID)
+	
+	// Si el relay está marcado como invertido, invertir el estado
+	if relayConfig != nil && relayConfig.InvertState {
+		if status == "ON" {
+			status = "OFF"
+		} else if status == "OFF" {
+			status = "ON"
+		}
+		log.Printf("🔄 Relay %s tiene InvertState=true. Status invertido: %s", relayID, status)
+	}
+
 	// Construir comando en el orden exacto
 	cmd := MQTTCommand{
 		Type:   "ON/OFF",
@@ -170,7 +184,6 @@ func sendMQTTCommand(relayID string, status string, delaySec int) error {
 	}
 
 	// Tomar placaID desde la config en memoria (cargada desde Mongo)
-	cfg := config.Get()
 	topic := mqttInControlTopic(cfg.Idplaca)
 
 	// Publicar

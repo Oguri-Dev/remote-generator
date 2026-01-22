@@ -322,15 +322,19 @@ const getRelayName = (relayId: string): string => {
 
 // ===== Helper para leer estado desde inputs (prioridad) o relays (fallback) =====
 const getRelayState = (relayId: string): string => {
-  // Prioridad: inputs (estado real del sensor)
-  if (placaStore.inputs[relayId]) {
-    const inputState = placaStore.inputs[relayId];
+  // Obtener la configuración del relay para saber qué input usar
+  const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
+  
+  // Si el relay tiene un input_id configurado, leer desde ese input
+  if (relayConfig?.input_id && placaStore.inputs[relayConfig.input_id]) {
+    const inputState = placaStore.inputs[relayConfig.input_id];
     // Mapear HIGH/LOW a Apagado/Encendido (lógica normal: HIGH=no activado, LOW=activado)
     if (inputState === 'HIGH') return 'Apagado';
     if (inputState === 'LOW') return 'Encendido';
     return inputState;
   }
-  // Fallback: relays (si no hay input disponible)
+  
+  // Fallback: relays (si no hay input configurado o disponible)
   const relayState = placaStore.relays[relayId] || '';
   // Mapear ON/OFF a Encendido/Apagado
   if (relayState === 'ON') return 'Encendido';

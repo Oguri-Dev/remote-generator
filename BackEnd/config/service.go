@@ -20,6 +20,7 @@ type RelayConfig struct {
 	Type        string `bson:"type"         json:"type"` // "generador", "rack", "modulo", "manual", "disabled"
 	Enabled     bool   `bson:"enabled"      json:"enabled"`
 	InvertState bool   `bson:"invert_state" json:"invert_state"` // Si true: invierte ON/OFF para la secuencia
+	InputID     string `bson:"input_id"     json:"input_id"`     // ID del input físico que corresponde a este relay
 }
 
 type Config struct {
@@ -40,14 +41,14 @@ type Config struct {
 // GetDefaultRelays retorna la configuración por defecto de los 8 relays
 func GetDefaultRelays() []RelayConfig {
 	return []RelayConfig{
-		{ID: "1", Name: "Generador", Type: "generador", Enabled: true, InvertState: false},
-		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true, InvertState: false},
-		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true, InvertState: false},
-		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true, InvertState: false},
-		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false, InvertState: false},
-		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false, InvertState: false},
-		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false, InvertState: false},
-		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false, InvertState: false},
+		{ID: "1", Name: "Generador", Type: "generador", Enabled: true, InvertState: false, InputID: "1"},
+		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true, InvertState: false, InputID: "2"},
+		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true, InvertState: false, InputID: "3"},
+		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true, InvertState: false, InputID: "4"},
+		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
+		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
+		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
+		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false, InvertState: false, InputID: "8"},
 	}
 }
 
@@ -67,6 +68,10 @@ func normalizeRelays(relays []RelayConfig) []RelayConfig {
 			r.Type = "disabled"
 		}
 		r.Enabled = r.Type != "disabled"
+		// Si no tiene InputID configurado, usar el mismo ID del relay por defecto
+		if r.InputID == "" && r.Type != "disabled" {
+			r.InputID = r.ID
+		}
 		out[i] = r
 	}
 	return out
@@ -207,6 +212,7 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 			"type":         r.Type,
 			"enabled":      r.Enabled,
 			"invert_state": r.InvertState,
+			"input_id":     r.InputID,
 		})
 	}
 
