@@ -145,7 +145,7 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		// si no existe, creamos una doc por defecto
 		c = Config{
-			Topic:       "generador/estado",
+			Topic:       "/dingtian/relay8718/out/#",
 			Relays:      GetDefaultRelays(),
 			RelayManual: "8",
 		}
