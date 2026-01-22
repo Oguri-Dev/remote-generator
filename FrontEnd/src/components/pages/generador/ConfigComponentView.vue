@@ -30,6 +30,7 @@ interface RelayConfig {
   name: string
   type: string
   enabled: boolean
+  invert_state?: boolean
 }
 
 // estado actual y copia base para detectar cambios
@@ -48,14 +49,14 @@ let baseSnapshot: any = {}
 
 // Configuración por defecto de los 8 relays
 const defaultRelays: RelayConfig[] = [
-  { id: '1', name: 'Generador', type: 'generador', enabled: true },
-  { id: '2', name: 'Rack Monitoreo', type: 'rack', enabled: true },
-  { id: '3', name: 'Módulo 1', type: 'modulo', enabled: true },
-  { id: '4', name: 'Módulo 2', type: 'modulo', enabled: true },
-  { id: '5', name: 'Relay 5', type: 'disabled', enabled: false },
-  { id: '6', name: 'Relay 6', type: 'disabled', enabled: false },
-  { id: '7', name: 'Relay 7', type: 'disabled', enabled: false },
-  { id: '8', name: 'Modo Manual', type: 'manual', enabled: false },
+  { id: '1', name: 'Generador', type: 'generador', enabled: true, invert_state: false },
+  { id: '2', name: 'Rack Monitoreo', type: 'rack', enabled: true, invert_state: false },
+  { id: '3', name: 'Módulo 1', type: 'modulo', enabled: true, invert_state: false },
+  { id: '4', name: 'Módulo 2', type: 'modulo', enabled: true, invert_state: false },
+  { id: '5', name: 'Relay 5', type: 'disabled', enabled: false, invert_state: false },
+  { id: '6', name: 'Relay 6', type: 'disabled', enabled: false, invert_state: false },
+  { id: '7', name: 'Relay 7', type: 'disabled', enabled: false, invert_state: false },
+  { id: '8', name: 'Modo Manual', type: 'manual', enabled: false, invert_state: false },
 ]
 
 // compara estado actual vs base
@@ -108,6 +109,7 @@ function normalizarPayload() {
       name: r.name.trim(),
       type: r.type,
       enabled: r.type !== 'disabled',
+      invert_state: r.invert_state || false,
     })),
   }
 }
@@ -252,6 +254,12 @@ onMounted(load)
                       </option>
                     </select>
                   </div>
+                </VField>
+
+                <VField>
+                  <VControl>
+                    <VCheckbox v-model="relay.invert_state" label="Invertir estado (cableado invertido)" />
+                  </VControl>
                 </VField>
               </div>
             </div>
