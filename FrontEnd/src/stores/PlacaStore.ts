@@ -45,11 +45,21 @@ export const usePlacaStore = defineStore('placaStore', {
         this.connectionStatus = 'Conectada'
       }
 
+      // Procesar formato largo: /out/relay1 {"idx":"1","status":"ON"}
       if (topic.includes('/out/relay')) {
         const parsedMessage = JSON.parse(message)
         const idx = parsedMessage.idx?.toString()
         if (idx) this.relays[idx] = parsedMessage.status
-      } else if (topic.includes('/ip')) {
+      }
+      // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc.
+      else if (topic.match(/\/out\/r\d+$/)) {
+        const relayMatch = topic.match(/\/r(\d+)$/)
+        if (relayMatch) {
+          const idx = relayMatch[1]
+          this.relays[idx] = message.trim()
+        }
+      } 
+      else if (topic.includes('/ip')) {
         this.ip = message
       } else if (topic.includes('/mac')) {
         this.mac = message
