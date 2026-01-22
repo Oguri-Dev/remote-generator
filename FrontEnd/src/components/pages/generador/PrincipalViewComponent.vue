@@ -325,9 +325,9 @@ const getRelayState = (relayId: string): string => {
   // Prioridad: inputs (estado real del sensor)
   if (placaStore.inputs[relayId]) {
     const inputState = placaStore.inputs[relayId];
-    // Mapear HIGH/LOW a Encendido/Apagado
-    if (inputState === 'HIGH') return 'Encendido';
-    if (inputState === 'LOW') return 'Apagado';
+    // Mapear HIGH/LOW a Apagado/Encendido (lógica normal: HIGH=no activado, LOW=activado)
+    if (inputState === 'HIGH') return 'Apagado';
+    if (inputState === 'LOW') return 'Encendido';
     return inputState;
   }
   // Fallback: relays (si no hay input disponible)
