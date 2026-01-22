@@ -45,13 +45,30 @@ export const usePlacaStore = defineStore('placaStore', {
         this.connectionStatus = 'Conectada'
       }
 
-      // Procesar formato largo: /out/relay1 {"idx":"1","status":"ON"}
-      if (topic.includes('/out/relay')) {
-        const parsedMessage = JSON.parse(message)
-        const idx = parsedMessage.idx?.toString()
-        if (idx) this.relays[idx] = parsedMessage.status
+      // Procesar INPUTS (estado real): /out/input1 {"idx":"1","status":"HIGH"}
+      if (topic.includes('/out/input')) {
+        try {
+          const parsedMessage = JSON.parse(message)
+          const idx = parsedMessage.idx?.toString()
+          // Guardar en inputs (estado real del sensor)
+          if (idx) this.inputs[idx] = parsedMessage.status
+          // También actualizar relays con el estado del input (correlativo)
+          if (idx) this.relays[idx] = parsedMessage.status
+        } catch (e) {
+          // Si no es JSON, ignorar
+        }
       }
-      // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc.
+      // Procesar formato largo de relays: /out/relay1 {"idx":"1","status":"ON"} (legacy)
+      else if (topic.includes('/out/relay')) {
+        try {
+          const parsedMessage = JSON.parse(message)
+          const idx = parsedMessage.idx?.toString()
+          if (idx) this.relays[idx] = parsedMessage.status
+        } catch (e) {
+          // Si no es JSON, ignorar
+        }
+      }
+      // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc. (legacy)
       else if (topic.match(/\/out\/r\d+$/)) {
         const relayMatch = topic.match(/\/r(\d+)$/)
         if (relayMatch) {
