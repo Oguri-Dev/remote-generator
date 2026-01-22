@@ -23,6 +23,9 @@ type ConfigGenerador struct {
 
 	// Relay para modo manual (por defecto "8")
 	RelayManual string `bson:"relay_manual" json:"relay_manual"`
+
+	// Método de detección de modo manual: "input" (sensor físico) o "auto" (cálculo lógico)
+	ManualModeDetection string `bson:"manual_mode_detection" json:"manual_mode_detection"`
 }
 
 // GetDefaultRelays retorna la configuración por defecto de los 8 relays

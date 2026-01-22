@@ -43,6 +43,7 @@ const form = reactive({
   passmqtt: '',
   topic: '',
   relay_manual: '8',
+  manual_mode_detection: 'auto' as 'input' | 'auto',
   relays: [] as RelayConfig[],
 })
 
@@ -105,6 +106,7 @@ function normalizarPayload() {
     passmqtt: String(form.passmqtt || ''),
     topic: String(form.topic || '').trim(),
     relay_manual: String(form.relay_manual || '8').trim(),
+    manual_mode_detection: form.manual_mode_detection || 'auto',
     relays: form.relays.map(r => ({
       id: r.id,
       name: r.name.trim(),
@@ -282,7 +284,24 @@ onMounted(load)
 
             <!-- Relay Manual -->
             <div class="mt-5">
-              <VField label="Relay para Modo Manual (sensor de estado)">
+              <VField label="Detección de Modo Manual">
+                <VControl>
+                  <div class="select is-fullwidth">
+                    <select v-model="form.manual_mode_detection">
+                      <option value="auto">Automática (por lógica)</option>
+                      <option value="input">Sensor físico (input dedicado)</option>
+                    </select>
+                  </div>
+                </VControl>
+              </VField>
+              <p class="help">
+                <strong>Automática:</strong> Detecta modo manual cuando el generador está OFF pero los componentes
+                tienen energía.<br>
+                <strong>Sensor físico:</strong> Usa el input del relay configurado abajo.
+              </p>
+
+              <VField v-if="form.manual_mode_detection === 'input'" label="Relay para Modo Manual (sensor de estado)"
+                class="mt-3">
                 <VControl icon="feather:hand">
                   <VSelect v-model="form.relay_manual">
                     <option v-for="i in 8" :key="i" :value="String(i)">
@@ -291,9 +310,6 @@ onMounted(load)
                   </VSelect>
                 </VControl>
               </VField>
-              <p class="help">
-                Este relay indica si el generador está en modo manual (encendido físicamente).
-              </p>
             </div>
 
             <!-- Botones de acción -->

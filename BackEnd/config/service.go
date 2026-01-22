@@ -36,6 +36,9 @@ type Config struct {
 
 	// Relay para modo manual (por defecto "8")
 	RelayManual string `bson:"relay_manual" json:"relay_manual"`
+
+	// Método de detección de modo manual: "input" o "auto"
+	ManualModeDetection string `bson:"manual_mode_detection" json:"manual_mode_detection"`
 }
 
 // GetDefaultRelays retorna la configuración por defecto de los 8 relays
@@ -173,9 +176,10 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		// si no existe, creamos una doc por defecto
 		c = Config{
-			Topic:       "/dingtian/relay8718/out/#",
-			Relays:      GetDefaultRelays(),
-			RelayManual: "8",
+			Topic:               "/dingtian/relay8718/out/#",
+			Relays:              GetDefaultRelays(),
+			RelayManual:         "8",
+			ManualModeDetection: "auto",
 		}
 		_, err = s.client.Database(s.dbName).Collection(s.collName).InsertOne(ctx, c)
 	}
@@ -203,6 +207,9 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	if in.RelayManual == "" {
 		in.RelayManual = "8"
 	}
+	if in.ManualModeDetection == "" {
+		in.ManualModeDetection = "auto"
+	}
 
 	relaysDoc := make([]bson.M, 0, len(in.Relays))
 	for _, r := range in.Relays {
@@ -218,14 +225,15 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 
 	// 1) Documento normalizado
 	doc := bson.M{
-		"ipplaca":      in.Ipplaca,
-		"idplaca":      in.Idplaca,
-		"ipbroker":     in.Ipbroker,
-		"usermqtt":     in.Usermqtt,
-		"passmqtt":     in.Passmqtt,
-		"topic":        in.Topic,
-		"relays":       relaysDoc,
-		"relay_manual": in.RelayManual,
+		"ipplaca":                in.Ipplaca,
+		"idplaca":                in.Idplaca,
+		"ipbroker":               in.Ipbroker,
+		"usermqtt":               in.Usermqtt,
+		"passmqtt":               in.Passmqtt,
+		"topic":                  in.Topic,
+		"relays":                 relaysDoc,
+		"relay_manual":           in.RelayManual,
+		"manual_mode_detection":  in.ManualModeDetection,
 	}
 
 	// 2) Llaves legacy a eliminar

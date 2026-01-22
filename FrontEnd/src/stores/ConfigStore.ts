@@ -22,17 +22,74 @@ export interface Config {
   topic: string
   relays: RelayConfig[]
   relay_manual: string
+  manual_mode_detection: 'input' | 'auto' // Método de detección: 'input' (sensor físico) o 'auto' (cálculo lógico)
 }
 
 const defaultRelays: RelayConfig[] = [
-  { id: '1', name: 'Generador', type: 'generador', enabled: true, invert_state: false, input_id: '1' },
-  { id: '2', name: 'Rack Monitoreo', type: 'rack', enabled: true, invert_state: false, input_id: '2' },
-  { id: '3', name: 'Módulo 1', type: 'modulo', enabled: true, invert_state: false, input_id: '3' },
-  { id: '4', name: 'Módulo 2', type: 'modulo', enabled: true, invert_state: false, input_id: '4' },
-  { id: '5', name: 'Relay 5', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
-  { id: '6', name: 'Relay 6', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
-  { id: '7', name: 'Relay 7', type: 'disabled', enabled: false, invert_state: false, input_id: '' },
-  { id: '8', name: 'Modo Manual', type: 'manual', enabled: false, invert_state: false, input_id: '8' },
+  {
+    id: '1',
+    name: 'Generador',
+    type: 'generador',
+    enabled: true,
+    invert_state: false,
+    input_id: '1',
+  },
+  {
+    id: '2',
+    name: 'Rack Monitoreo',
+    type: 'rack',
+    enabled: true,
+    invert_state: false,
+    input_id: '2',
+  },
+  {
+    id: '3',
+    name: 'Módulo 1',
+    type: 'modulo',
+    enabled: true,
+    invert_state: false,
+    input_id: '3',
+  },
+  {
+    id: '4',
+    name: 'Módulo 2',
+    type: 'modulo',
+    enabled: true,
+    invert_state: false,
+    input_id: '4',
+  },
+  {
+    id: '5',
+    name: 'Relay 5',
+    type: 'disabled',
+    enabled: false,
+    invert_state: false,
+    input_id: '',
+  },
+  {
+    id: '6',
+    name: 'Relay 6',
+    type: 'disabled',
+    enabled: false,
+    invert_state: false,
+    input_id: '',
+  },
+  {
+    id: '7',
+    name: 'Relay 7',
+    type: 'disabled',
+    enabled: false,
+    invert_state: false,
+    input_id: '',
+  },
+  {
+    id: '8',
+    name: 'Modo Manual',
+    type: 'manual',
+    enabled: false,
+    invert_state: false,
+    input_id: '8',
+  },
 ]
 
 export const useConfigStore = defineStore('configStore', () => {

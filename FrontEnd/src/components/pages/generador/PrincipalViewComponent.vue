@@ -234,9 +234,40 @@ const estadoBroker = computed(() => (mqttStore.isConnected ? "Conectado" : "Cone
 // ===== Verificar estados individuales =====
 // Relés de tipo "manual" - sensor de modo manual físico
 const manualRelays = computed(() => configStore.enabledRelays.filter(r => r.type === 'manual'));
-const isManualMode = computed(() =>
-  manualRelays.value.some(relay => placaStore.relays[relay.id] === "ON")
-);
+
+// Detectar modo manual según configuración
+const isManualMode = computed(() => {
+  const detectionMode = configStore.config?.manual_mode_detection || 'auto';
+
+  if (detectionMode === 'input') {
+    // Modo 1: Usar sensor físico (input del relay manual)
+    const manualRelayWithInput = manualRelays.value.find(r => r.input_id);
+    if (manualRelayWithInput && manualRelayWithInput.input_id) {
+      const inputState = placaStore.inputs[manualRelayWithInput.input_id];
+      return inputState === 'LOW'; // LOW = sensor detecta modo manual
+    }
+    return false; // No hay sensor configurado
+  } else {
+    // Modo 2: Detección automática por lógica
+    // Generador OFF pero componentes siguen encendidos = modo manual
+
+    // Verificar si el relay del generador está apagado
+    const isGeneratorRelayOff = generatorRelays.value.every(relay => {
+      const relayState = placaStore.relays[relay.id];
+      return relayState === 'OFF' || !relayState;
+    });
+
+    // Verificar si los componentes tienen energía (inputs en LOW)
+    const areComponentsPowered = equipmentRelays.value.some(relay => {
+      if (!relay.input_id) return false;
+      const inputState = placaStore.inputs[relay.input_id];
+      return inputState === 'LOW'; // LOW = con energía
+    });
+
+    // Si generador OFF pero componentes con energía = modo manual
+    return isGeneratorRelayOff && areComponentsPowered;
+  }
+});
 const isGeneratorOn = computed(() => {
   // Verificar si algún generador está encendido
   // Si no hay generadores configurados, considerar como "encendido" para no bloquear
@@ -324,7 +355,7 @@ const getRelayName = (relayId: string): string => {
 const getRelayState = (relayId: string): string => {
   // Obtener la configuración del relay para saber qué input usar
   const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
-  
+
   // Si el relay tiene un input_id configurado, leer desde ese input
   if (relayConfig?.input_id && placaStore.inputs[relayConfig.input_id]) {
     const inputState = placaStore.inputs[relayConfig.input_id];
@@ -333,7 +364,7 @@ const getRelayState = (relayId: string): string => {
     if (inputState === 'LOW') return 'Encendido';
     return inputState;
   }
-  
+
   // Fallback: relays (si no hay input configurado o disponible)
   const relayState = placaStore.relays[relayId] || '';
   // Mapear ON/OFF a Encendido/Apagado
