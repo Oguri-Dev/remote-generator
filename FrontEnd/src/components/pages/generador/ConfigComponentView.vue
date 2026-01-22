@@ -111,6 +111,7 @@ function normalizarPayload() {
       type: r.type,
       enabled: r.type !== 'disabled',
       invert_state: r.invert_state || false,
+      input_id: r.input_id || '',
     })),
   }
 }
