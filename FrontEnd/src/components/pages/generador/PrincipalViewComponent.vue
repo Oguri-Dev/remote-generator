@@ -22,10 +22,10 @@
                 <h3 class="dark-inverted">Estado Actual {{ relay.name }}</h3>
                 <h2 v-if="!isSystemConnected" class="text-warning">Esperando datos...</h2>
                 <h2 v-else :class="{
-                  'text-success': placaStore.relays[relay.id] === 'ON',
-                  'text-warning': placaStore.relays[relay.id] !== 'ON'
+                  'text-success': getRelayState(relay.id) === 'LOW' || getRelayState(relay.id) === 'ON',
+                  'text-warning': getRelayState(relay.id) !== 'LOW' && getRelayState(relay.id) !== 'ON'
                 }">
-                  Estado actual: {{ placaStore.relays[relay.id] || "Esperando datos..." }}
+                  Estado actual: {{ getRelayState(relay.id) || "Esperando datos..." }}
                 </h2>
               </div>
             </div>
@@ -318,6 +318,16 @@ const restartComponent = async (component: string) => {
 // ===== Helper para nombres de relés =====
 const getRelayName = (relayId: string): string => {
   return configStore.getRelayName(relayId);
+};
+
+// ===== Helper para leer estado desde inputs (prioridad) o relays (fallback) =====
+const getRelayState = (relayId: string): string => {
+  // Prioridad: inputs (estado real del sensor)
+  if (placaStore.inputs[relayId]) {
+    return placaStore.inputs[relayId];
+  }
+  // Fallback: relays (si no hay input disponible)
+  return placaStore.relays[relayId] || '';
 };
 
 // ===== Secuencias activas =====

@@ -46,34 +46,41 @@ export const usePlacaStore = defineStore('placaStore', {
       }
 
       // Procesar INPUTS (estado real): /out/input1 {"idx":"1","status":"HIGH"}
+      // PRIORIDAD: inputs son la fuente de verdad (sensores reales)
       if (topic.includes('/out/input')) {
         try {
           const parsedMessage = JSON.parse(message)
           const idx = parsedMessage.idx?.toString()
-          // Guardar en inputs (estado real del sensor)
+          // Guardar SOLO en inputs (estado real del sensor)
           if (idx) this.inputs[idx] = parsedMessage.status
-          // También actualizar relays con el estado del input (correlativo)
-          if (idx) this.relays[idx] = parsedMessage.status
         } catch (e) {
           // Si no es JSON, ignorar
         }
       }
       // Procesar formato largo de relays: /out/relay1 {"idx":"1","status":"ON"} (legacy)
+      // Solo si NO hay input para este relay (para no sobrescribir)
       else if (topic.includes('/out/relay')) {
         try {
           const parsedMessage = JSON.parse(message)
           const idx = parsedMessage.idx?.toString()
-          if (idx) this.relays[idx] = parsedMessage.status
+          // Guardar en relays SOLO si no existe input para este índice
+          if (idx && !this.inputs[idx]) {
+            this.relays[idx] = parsedMessage.status
+          }
         } catch (e) {
           // Si no es JSON, ignorar
         }
       }
       // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc. (legacy)
+      // Solo si NO hay input para este relay
       else if (topic.match(/\/out\/r\d+$/)) {
         const relayMatch = topic.match(/\/r(\d+)$/)
         if (relayMatch) {
           const idx = relayMatch[1]
-          this.relays[idx] = message.trim()
+          // Guardar SOLO si no existe input para este índice
+          if (!this.inputs[idx]) {
+            this.relays[idx] = message.trim()
+          }
         }
       } 
       else if (topic.includes('/ip')) {
