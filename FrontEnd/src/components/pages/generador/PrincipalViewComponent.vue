@@ -2,7 +2,7 @@
   <div class="personal-dashboard personal-dashboard-v3">
     <div class="columns is-variable is-1-mobile is-2-tablet">
       <!-- Columna Izquierda: Estados de Relés -->
-      <div class="column is-12-mobile is-12-tablet is-6-desktop">
+      <div class="column is-12-mobile is-12-tablet is-5-desktop">
         <div class="columns is-multiline is-flex-tablet-p is-variable is-1-mobile is-2-tablet">
           <!-- Banner de Modo Manual Activo -->
           <div v-if="isManualMode" class="column is-12">
@@ -44,7 +44,7 @@
       </div>
 
       <!-- Columna Derecha: Controles -->
-      <div class="column is-12-mobile is-12-tablet is-5-desktop">
+      <div class="column is-12-mobile is-12-tablet is-7-desktop">
         <div class="columns is-multiline is-flex-tablet-p">
           <div class="column is-12">
             <div class="stats-wrapper">
@@ -232,41 +232,52 @@ const estadoPlaca = computed(() => placaStore.connectionStatus);
 const estadoBroker = computed(() => (mqttStore.isConnected ? "Conectado" : "Conectando..."));
 
 // ===== Verificar estados individuales =====
-// Relés de tipo "manual" - sensor de modo manual físico
-const manualRelays = computed(() => configStore.enabledRelays.filter(r => r.type === 'manual'));
+// Helper: interpreta el estado de un input (LOW = conectado/energizado)
+const getInputPowerStatus = (relayConfig?: { input_id?: string }) => {
+  if (!relayConfig?.input_id) return null;
+  const raw = placaStore.inputs[relayConfig.input_id];
+  if (!raw) return null;
+
+  if (raw === 'LOW') return 'Encendido'; // LOW = con conectividad/energía
+  if (raw === 'HIGH') return 'Apagado';  // HIGH = sin conectividad/energía
+  return raw; // Estado desconocido
+};
+
+const isInputOn = (relayConfig?: { input_id?: string }) => {
+  return getInputPowerStatus(relayConfig) === 'Encendido';
+};
 
 // Detectar modo manual según configuración
 const isManualMode = computed(() => {
   const detectionMode = configStore.config?.manual_mode_detection || 'auto';
 
   if (detectionMode === 'input') {
-    // Modo 1: Usar sensor físico (input del relay manual)
-    const manualRelayWithInput = manualRelays.value.find(r => r.input_id);
-    if (manualRelayWithInput && manualRelayWithInput.input_id) {
-      const inputState = placaStore.inputs[manualRelayWithInput.input_id];
-      return inputState === 'LOW'; // LOW = sensor detecta modo manual
+    // Modo 1: Usar sensor físico del relay elegido para modo manual
+    const manualRelayId = configStore.config?.relay_manual;
+    const manualRelay = configStore.config?.relays.find(r => r.id === manualRelayId);
+    if (manualRelay) {
+      return isInputOn(manualRelay); // Encendido = modo manual activo
     }
     return false; // No hay sensor configurado
-  } else {
-    // Modo 2: Detección automática por lógica
-    // Generador OFF pero componentes siguen encendidos = modo manual
-
-    // Verificar si el relay del generador está apagado
-    const isGeneratorRelayOff = generatorRelays.value.every(relay => {
-      const relayState = placaStore.relays[relay.id];
-      return relayState === 'OFF' || !relayState;
-    });
-
-    // Verificar si los componentes tienen energía (inputs en LOW)
-    const areComponentsPowered = equipmentRelays.value.some(relay => {
-      if (!relay.input_id) return false;
-      const inputState = placaStore.inputs[relay.input_id];
-      return inputState === 'LOW'; // LOW = con energía
-    });
-
-    // Si generador OFF pero componentes con energía = modo manual
-    return isGeneratorRelayOff && areComponentsPowered;
   }
+
+  // Modo 2: Detección automática por lógica
+  // Generador OFF pero componentes siguen encendidos = modo manual
+
+  // Verificar si el relay del generador está apagado (estado reportado por la placa)
+  const isGeneratorRelayOff = generatorRelays.value.every(relay => {
+    const relayState = placaStore.relays[relay.id];
+    return relayState === 'OFF' || !relayState;
+  });
+
+  // Verificar si los componentes tienen energía (inputs LOW = energía)
+  const areComponentsPowered = equipmentRelays.value.some(relay => {
+    const relayConfig = configStore.config?.relays.find(r => r.id === relay.id);
+    return isInputOn(relayConfig);
+  });
+
+  // Si generador OFF pero componentes con energía = modo manual
+  return isGeneratorRelayOff && areComponentsPowered;
 });
 const isGeneratorOn = computed(() => {
   // Verificar si algún generador está encendido
@@ -335,7 +346,54 @@ const toggleRelay = (relayId: string) => {
 
 const confirmToggleRelay = async () => {
   if (!pendingRelayId.value) return;
-  await sendActionToBackend(pendingRelayId.value, pendingAction.value);
+
+  const action = pendingAction.value;
+  const relayName = getRelayName(pendingRelayId.value);
+
+  console.log(`🔄 Iniciando secuencia de ${action === 'ON' ? 'ENCENDIDO' : 'APAGADO'}`);
+
+  if (action === 'ON') {
+    // Secuencia de encendido: Generadores → Racks → Módulos
+    console.log(`⚡ Paso 1: Encendiendo ${relayName}`);
+    await sendActionToBackend(pendingRelayId.value, 'ON');
+
+    if (rackRelays.value.length > 0) {
+      console.log(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
+      for (const relay of rackRelays.value) {
+        await sendActionToBackend(relay.id, 'ON');
+      }
+    }
+
+    if (moduleRelays.value.length > 0) {
+      console.log(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
+      for (const relay of moduleRelays.value) {
+        await sendActionToBackend(relay.id, 'ON');
+      }
+    }
+
+    console.log(`✅ Secuencia de ENCENDIDO completada`);
+  } else {
+    // Secuencia de apagado: Módulos → Racks → Generadores
+    if (moduleRelays.value.length > 0) {
+      console.log(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
+      for (let i = moduleRelays.value.length - 1; i >= 0; i--) {
+        await sendActionToBackend(moduleRelays.value[i].id, 'OFF');
+      }
+    }
+
+    if (rackRelays.value.length > 0) {
+      console.log(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
+      for (let i = rackRelays.value.length - 1; i >= 0; i--) {
+        await sendActionToBackend(rackRelays.value[i].id, 'OFF');
+      }
+    }
+
+    console.log(`🛑 Paso 3: Apagando ${relayName}`);
+    await sendActionToBackend(pendingRelayId.value, 'OFF');
+
+    console.log(`✅ Secuencia de APAGADO completada`);
+  }
+
   showGeneratorConfirm.value = false;
   pendingRelayId.value = null;
   pendingAction.value = '';
@@ -343,6 +401,14 @@ const confirmToggleRelay = async () => {
 
 const restartComponent = async (component: string) => {
   if (areButtonsDisabled.value) return;
+
+  if (component === 'all') {
+    console.log(`🔄 Reiniciando TODO el equipamiento`);
+  } else {
+    const componentName = getRelayName(component);
+    console.log(`🔄 Reiniciando ${componentName}`);
+  }
+
   await sendActionToBackend(component, "restart");
 };
 
@@ -356,14 +422,9 @@ const getRelayState = (relayId: string): string => {
   // Obtener la configuración del relay para saber qué input usar
   const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
 
-  // Si el relay tiene un input_id configurado, leer desde ese input
-  if (relayConfig?.input_id && placaStore.inputs[relayConfig.input_id]) {
-    const inputState = placaStore.inputs[relayConfig.input_id];
-    // Mapear HIGH/LOW a Apagado/Encendido (lógica normal: HIGH=no activado, LOW=activado)
-    if (inputState === 'HIGH') return 'Apagado';
-    if (inputState === 'LOW') return 'Encendido';
-    return inputState;
-  }
+  // Si el relay tiene un input_id configurado, leer desde ese input (LOW = Encendido)
+  const inputStatus = getInputPowerStatus(relayConfig);
+  if (inputStatus) return inputStatus;
 
   // Fallback: relays (si no hay input configurado o disponible)
   const relayState = placaStore.relays[relayId] || '';
@@ -401,6 +462,12 @@ const activeSequences = computed(() => {
 .personal-dashboard-v3 {
   margin: 1% 5%;
   padding: 0 1rem;
+
+  // Añade separación entre las columnas principales
+  >.columns {
+    column-gap: 5rem;
+    row-gap: 3rem;
+  }
 
   .columns {
     &.is-flex-tablet-p {

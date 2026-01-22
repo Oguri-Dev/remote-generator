@@ -49,12 +49,8 @@ export const useMqttStore = defineStore('mqttStore', {
           data = { topic: '/raw', message: event.data }
         }
 
-        // 🔥 DEBUG: Log de todos los mensajes WebSocket
-        console.log(`🔌 WebSocket mensaje recibido:`, data)
-
         // 1) Estado de secuencia emitido por el back
         if (data.topic === '/mqtt/sequence_state') {
-          console.log(`📊 Sequence state actualizado:`, data.message)
           if (data.message && typeof data.message === 'object') {
             // mergea sólo las claves conocidas
             this.sequenceState = { ...this.sequenceState, ...data.message }

@@ -1,0 +1,17 @@
+# ============================================================================
+# ONE-LINER INSTALLER
+# Descarga e instala el sistema completo con un solo comando
+# ============================================================================
+
+# Copia este comando COMPLETO en PowerShell:
+
+# VERSIÓN 1: Desde GitHub (recomendado)
+iex (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/tu-usuario/generador/main/bootstrap-install.ps1')
+
+# VERSIÓN 2: Desde un servidor web
+iex (New-Object System.Net.WebClient).DownloadString('https://tudominio.com/bootstrap-install.ps1')
+
+# ============================================================================
+# NOTA IMPORTANTE:
+# Reemplaza las URLs anteriores por tu repositorio/servidor real
+# ============================================================================

@@ -40,9 +40,6 @@ export const usePlacaStore = defineStore('placaStore', {
     updatePlacaData(topic: string, message: string) {
       this.lastMessageTime = Date.now() // 🔄 Actualiza la última actividad
 
-      // 🔥 DEBUG: Mostrar todos los tópicos que llegan
-      console.log(`📡 MQTT Topic: ${topic}`, `Message:`, message)
-
       // 🔥 Actualizar estado solo si cambió
       if (this.connectionStatus !== 'Conectada') {
         this.connectionStatus = 'Conectada'
@@ -57,11 +54,9 @@ export const usePlacaStore = defineStore('placaStore', {
           // Guardar SOLO en inputs (estado real del sensor)
           if (idx) {
             this.inputs[idx] = parsedMessage.status
-            console.log(`✅ Input[${idx}] actualizado a: ${parsedMessage.status}`)
           }
         } catch (e) {
           // Si no es JSON, ignorar
-          console.warn(`⚠️ Error parseando input JSON:`, e)
         }
       }
       // Procesar formato largo de relays: /out/relay1 {"idx":"1","status":"ON"} (legacy)
@@ -73,15 +68,9 @@ export const usePlacaStore = defineStore('placaStore', {
           // Guardar en relays SOLO si no existe input para este índice
           if (idx && !this.inputs[idx]) {
             this.relays[idx] = parsedMessage.status
-            console.log(
-              `✅ Relay[${idx}] actualizado a: ${parsedMessage.status} (sin input)`
-            )
-          } else if (idx && this.inputs[idx]) {
-            console.log(`⏭️ Relay[${idx}] ignorado (input ya existe)`)
           }
         } catch (e) {
           // Si no es JSON, ignorar
-          console.warn(`⚠️ Error parseando relay JSON:`, e)
         }
       }
       // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc. (legacy)
@@ -93,25 +82,16 @@ export const usePlacaStore = defineStore('placaStore', {
           // Guardar SOLO si no existe input para este índice
           if (!this.inputs[idx]) {
             this.relays[idx] = message.trim()
-            console.log(
-              `✅ Relay corto[${idx}] actualizado a: ${message.trim()} (sin input)`
-            )
-          } else {
-            console.log(`⏭️ Relay corto[${idx}] ignorado (input ya existe)`)
           }
         }
       } else if (topic.includes('/ip')) {
         this.ip = message
-        console.log(`✅ IP actualizada a: ${message}`)
       } else if (topic.includes('/mac')) {
         this.mac = message
-        console.log(`✅ MAC actualizado a: ${message}`)
       } else if (topic.includes('/out/sn')) {
         this.serialNumber = message
-        console.log(`✅ Serial actualizado a: ${message}`)
       } else if (topic.includes('/input_cnt')) {
         this.inputCount = parseInt(message) || 0
-        console.log(`✅ Input count actualizado a: ${this.inputCount}`)
       }
     },
 

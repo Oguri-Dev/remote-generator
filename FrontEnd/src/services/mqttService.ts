@@ -7,6 +7,9 @@ export const sendActionToBackend = async (relayId: string, status: string) => {
   const userSession = useUserSession()
   const BASE_URL = mqttStore.getBaseURL() // Asegurarnos de que la URL está actualizada
   const username = userSession.user?.username || 'system'
+
+  console.log(`🎯 Enviando comando: Relay ${relayId} → ${status} (Usuario: ${username})`)
+
   try {
     const response = await fetch(`/mqtt/action`, {
       method: 'POST',
@@ -16,8 +19,9 @@ export const sendActionToBackend = async (relayId: string, status: string) => {
     if (!response.ok) {
       throw new Error('Error al enviar comando MQTT')
     }
+    console.log(`✅ Comando enviado exitosamente: Relay ${relayId} → ${status}`)
   } catch (error) {
-    console.error('❌ Error al enviar la acción:', error)
+    console.error(`❌ Error al enviar comando Relay ${relayId}:`, error)
   }
 }
 
