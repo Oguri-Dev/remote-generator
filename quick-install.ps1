@@ -69,18 +69,10 @@ try {
 }
 
 # Configurar credenciales
-Write-Host "`n[4/5] Configuracion MongoDB" -ForegroundColor Yellow
-$mongoUser = Read-Host "Usuario MongoDB (default: admin)"
-if ([string]::IsNullOrWhiteSpace($mongoUser)) { $mongoUser = "admin" }
+Write-Host "`n[4/5] Configuracion del sistema" -ForegroundColor Yellow
 
-$mongoPass = Read-Host "Contrasena MongoDB (default: generador123)" -AsSecureString
-$mongoPassPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($mongoPass))
-if ([string]::IsNullOrWhiteSpace($mongoPassPlain)) { $mongoPassPlain = "generador123" }
-
-# Crear .env.docker
+# Crear .env.docker (ya no requiere credenciales MongoDB)
 @"
-MONGO_ROOT_USER=$mongoUser
-MONGO_ROOT_PASSWORD=$mongoPassPlain
 BACKEND_PORT=8099
 FRONTEND_ORIGIN=http://localhost
 MQTT_PORT=1883
@@ -122,11 +114,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "ACCESO:" -ForegroundColor Cyan
     Write-Host "  Frontend:  http://localhost" -ForegroundColor White
     Write-Host "  Backend:   http://localhost:8099" -ForegroundColor White
-    Write-Host "  MongoDB:   localhost:27017" -ForegroundColor White
+    Write-Host "  MongoDB:   localhost:27017 (sin autenticacion)" -ForegroundColor White
     Write-Host "  MQTT:      localhost:1883 (WebSocket: 9001)`n" -ForegroundColor White
-    Write-Host "CREDENCIALES:" -ForegroundColor Yellow
-    Write-Host "  Usuario:   $mongoUser" -ForegroundColor White
-    Write-Host "  Password:  $mongoPassPlain`n" -ForegroundColor White
     Write-Host "COMANDOS:" -ForegroundColor Yellow
     Write-Host "  Ver logs:  docker-compose logs -f" -ForegroundColor White
     Write-Host "  Detener:   docker-compose down" -ForegroundColor White

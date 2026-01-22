@@ -6,10 +6,6 @@ services:
     image: mongo:7.0
     container_name: generador-mongodb
     restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
-      MONGO_INITDB_DATABASE: generator
     ports:
       - '27017:27017'
     volumes:
@@ -36,7 +32,7 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017
+      MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DB: generator
       MONGODB_COLL: config
       PORT: 8099

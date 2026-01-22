@@ -130,22 +130,6 @@ try {
 Write-Host ""
 
 # ============================================================================
-# SOLICITAR CREDENCIALES
-# ============================================================================
-
-Write-Host "[*] Configuracion:" -ForegroundColor Yellow
-Write-Host ""
-
-$mongoUser = Read-Host "Usuario de MongoDB (default: admin)"
-if ([string]::IsNullOrWhiteSpace($mongoUser)) { $mongoUser = "admin" }
-
-$mongoPass = Read-Host "Contrasena de MongoDB (default: generador123)" -AsSecureString
-$mongoPassPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($mongoPass))
-if ([string]::IsNullOrWhiteSpace($mongoPassPlain)) { $mongoPassPlain = "generador123" }
-
-Write-Host ""
-
-# ============================================================================
 # CREAR .env.docker
 # ============================================================================
 
@@ -153,8 +137,6 @@ Write-Host "[*] Creando configuracion..." -ForegroundColor Yellow
 
 $envContent = @"
 # CONFIGURACION DE DOCKER - SISTEMA DE CONTROL GENERADOR
-MONGO_ROOT_USER=$mongoUser
-MONGO_ROOT_PASSWORD=$mongoPassPlain
 BACKEND_PORT=8099
 FRONTEND_ORIGIN=http://localhost
 MQTT_PORT=1883
@@ -216,12 +198,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "ACCESO A LA APLICACION:" -ForegroundColor Cyan
     Write-Host "   Frontend:    http://localhost" -ForegroundColor White
     Write-Host "   Backend:     http://localhost:8099" -ForegroundColor White
-    Write-Host "   MongoDB:     localhost:27017" -ForegroundColor White
+    Write-Host "   MongoDB:     localhost:27017 (sin autenticacion)" -ForegroundColor White
     Write-Host "   MQTT:        localhost:1883 (WebSocket: 9001)" -ForegroundColor White
-    Write-Host ""
-    Write-Host "CREDENCIALES MONGODB:" -ForegroundColor Yellow
-    Write-Host "   Usuario:     $mongoUser" -ForegroundColor White
-    Write-Host "   Contrasena:  $mongoPassPlain" -ForegroundColor White
     Write-Host ""
     Write-Host "ESTADO DE SERVICIOS:" -ForegroundColor Yellow
     docker-compose ps
