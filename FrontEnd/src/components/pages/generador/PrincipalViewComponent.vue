@@ -1,11 +1,11 @@
 <template>
   <div class="personal-dashboard personal-dashboard-v3">
-    <div class="columns">
+    <div class="columns is-variable is-1-mobile is-2-tablet">
       <!-- Columna Izquierda: Estados de Relés -->
-      <div class="column is-6">
-        <div class="columns is-multiline is-flex-tablet-p">
+      <div class="column is-12-mobile is-12-tablet is-6-desktop">
+        <div class="columns is-multiline is-flex-tablet-p is-variable is-1-mobile is-2-tablet">
           <!-- Banner de Modo Manual Activo -->
-          <div v-if="isManualMode" class="column is-11">
+          <div v-if="isManualMode" class="column is-12">
             <div class="dashboard-card is-welcome" style="background-color: #ff9f43; color: white;">
               <div class="welcome-title">
                 <h3 class="dark-inverted" style="color: white;">⚠️ Modo Manual Activo</h3>
@@ -16,7 +16,7 @@
           </div>
 
           <!-- Tarjetas de Estado (Dinámicas) -->
-          <div v-for="relay in enabledRelays" :key="relay.id" class="column is-11">
+          <div v-for="relay in enabledRelays" :key="relay.id" class="column is-12">
             <div class="dashboard-card is-welcome">
               <div class="welcome-title">
                 <h3 class="dark-inverted">Estado Actual {{ relay.name }}</h3>
@@ -32,7 +32,7 @@
           </div>
 
           <!-- Mensaje cuando no hay relés configurados -->
-          <div v-if="enabledRelays.length === 0" class="column is-11">
+          <div v-if="enabledRelays.length === 0" class="column is-12">
             <div class="dashboard-card is-welcome">
               <div class="welcome-title">
                 <h3 class="dark-inverted">Sin Relés Configurados</h3>
@@ -44,7 +44,7 @@
       </div>
 
       <!-- Columna Derecha: Controles -->
-      <div class="column is-5">
+      <div class="column is-12-mobile is-12-tablet is-5-desktop">
         <div class="columns is-multiline is-flex-tablet-p">
           <div class="column is-12">
             <div class="stats-wrapper">
@@ -346,6 +346,9 @@ const activeSequences = computed(() => {
 }
 
 .personal-dashboard-v3 {
+  margin: 1% 5%;
+  padding: 0 1rem;
+
   .columns {
     &.is-flex-tablet-p {
       .column {
@@ -381,6 +384,10 @@ const activeSequences = computed(() => {
       }
     }
   }
+
+  .stats-wrapper {
+    height: auto;
+  }
 }
 
 .is-dark {
@@ -401,15 +408,80 @@ const activeSequences = computed(() => {
   }
 }
 
-.personal-dashboard-v3 {
-  margin: 1% 5%;
+// ===== Media Queries Responsivas =====
+
+// Pantallas muy pequeñas (móviles < 768px)
+@media only screen and (max-width: 767px) {
+  .personal-dashboard-v3 {
+    margin: 0.5rem 0.5rem;
+    padding: 0;
+
+    .columns {
+      margin-left: -0.25rem;
+      margin-right: -0.25rem;
+    }
+
+    .dashboard-card {
+      &.is-welcome {
+        padding: 20px 15px;
+
+        .welcome-title {
+          h3 {
+            font-size: 1.3rem;
+          }
+
+          h2 {
+            font-size: 1rem;
+            padding-bottom: 8px;
+          }
+        }
+      }
+    }
+
+    .button-wrap {
+      .button {
+        min-height: 50px;
+        font-size: 0.9rem;
+        padding: 0.75rem 0.5rem;
+      }
+    }
+  }
 }
 
-@media only screen and (width <=767px) {
+// Tablets (768px - 1023px)
+@media only screen and (min-width: 768px) and (max-width: 1023px) {
   .personal-dashboard-v3 {
-    .stats-wrapper {
-      height: auto;
+    margin: 1% 2%;
+
+    .dashboard-card {
+      &.is-welcome {
+        padding: 25px 20px;
+
+        .welcome-title {
+          h3 {
+            font-size: 1.5rem;
+          }
+
+          h2 {
+            font-size: 1.2rem;
+          }
+        }
+      }
     }
+
+    .button-wrap {
+      .button {
+        min-height: 55px;
+        font-size: 0.95rem;
+      }
+    }
+  }
+}
+
+// Pantallas grandes (desktop > 1024px)
+@media only screen and (min-width: 1024px) {
+  .personal-dashboard-v3 {
+    margin: 1% 5%;
   }
 }
 
@@ -418,28 +490,22 @@ const activeSequences = computed(() => {
     color: #28a745;
   }
 
-  /* Verde fuerte */
   50% {
     color: #8bfd8b;
   }
 
-  /* Verde más claro */
   100% {
     color: #28a745;
   }
-
-  /* Regresa al verde fuerte */
 }
 
 .text-success {
   font-weight: bold;
   animation: breathing 3.5s infinite ease-in-out;
-  /* Aplica animación */
 }
 
 .text-danger {
   color: #dc3545;
-  /* Rojo fijo para OFF */
   font-weight: bold;
 }
 
@@ -448,23 +514,18 @@ const activeSequences = computed(() => {
     color: #ffd700;
   }
 
-  /* Amarillo fuerte */
   50% {
     color: #fd3f3f;
   }
 
-  /* Amarillo eléctrico */
   100% {
     color: #ffd700;
   }
-
-  /* Regresa al amarillo fuerte */
 }
 
 .text-warning {
   font-weight: bold;
   animation: breathing-yellow 2s infinite ease-in-out;
-  /* Animación amarilla para Conectando */
 }
 
 @keyframes breathing-red {
@@ -472,28 +533,22 @@ const activeSequences = computed(() => {
     color: #dc3545;
   }
 
-  /* Rojo fuerte */
   50% {
     color: #ff6b6b;
   }
 
-  /* Rojo más claro */
   100% {
     color: #dc3545;
   }
-
-  /* Regresa al rojo fuerte */
 }
 
 .text-danger-breathing {
   font-weight: bold;
   animation: breathing-red 2s infinite ease-in-out;
-  /* Animación roja para Desconectada */
 }
 
 .text-warning-breathing {
   font-weight: bold;
   animation: breathing-yellow 2s infinite ease-in-out;
-  /* Animación amarilla para Intentando conexión */
 }
 </style>
