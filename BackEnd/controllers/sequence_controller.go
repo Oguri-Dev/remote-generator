@@ -296,14 +296,23 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("✅ Generador %s: %s", relayConfig.Name, action)))
 
 	case "rack", "modulo":
-		// Equipamiento: solo RESTART
-		if cmd.Status != "restart" {
-			http.Error(w, "❌ Equipamiento de monitoreo solo acepta restart", http.StatusBadRequest)
+		// Equipamiento: permite ON/OFF/restart
+		if cmd.Status != "ON" && cmd.Status != "OFF" && cmd.Status != "restart" {
+			http.Error(w, "❌ Racks y módulos solo aceptan ON/OFF/restart", http.StatusBadRequest)
 			return
 		}
-		taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5, Username: username}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("✅ Reiniciando %s", relayConfig.Name)))
+		
+		// Para restart, usar secuencia de reinicio con delay de 5s
+		if cmd.Status == "restart" {
+			taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5, Username: username}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf("✅ Reiniciando %s", relayConfig.Name)))
+		} else {
+			// Para ON/OFF, ejecutar directamente sin delay
+			taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: cmd.Status, Delay: 0, Username: username}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf("✅ %s %s: %s", relayConfig.Type, relayConfig.Name, cmd.Status)))
+		}
 
 	case "manual":
 		// Manual: ON/OFF directo

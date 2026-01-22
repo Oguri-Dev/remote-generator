@@ -100,8 +100,7 @@
                       <div v-for="relay in generatorRelays" :key="relay.id" class="button-wrap column is-6">
                         <VButton type="submit" color="primary" bold raised fullwidth @click="toggleRelay(relay.id)"
                           :disabled="!canToggleGenerator">
-                          {{ placaStore.relays[relay.id] === 'ON' ? `Apagar ${relay.name}` : `Encender
-                          ${relay.name}` }}
+                          {{ isInputOn(relay) ? `Apagar ${relay.name}` : `Encender ${relay.name}` }}
                         </VButton>
                       </div>
                     </div>
@@ -339,8 +338,10 @@ const confirmDescription = computed(() =>
 // ===== Funciones de control =====
 const toggleRelay = (relayId: string) => {
   if (!canToggleGenerator.value) return;
+  const relay = configStore.getRelayById(relayId);
   pendingRelayId.value = relayId;
-  pendingAction.value = placaStore.relays[relayId] === "ON" ? "OFF" : "ON";
+  // Determinar acción basada en el estado real del input
+  pendingAction.value = isInputOn(relay) ? "OFF" : "ON";
   showGeneratorConfirm.value = true;
 };
 
@@ -348,26 +349,38 @@ const confirmToggleRelay = async () => {
   if (!pendingRelayId.value) return;
 
   const action = pendingAction.value;
+  const relayId = pendingRelayId.value;
   const relayName = getRelayName(pendingRelayId.value);
+
+  // Cerrar el modal inmediatamente
+  showGeneratorConfirm.value = false;
+  pendingRelayId.value = null;
+  pendingAction.value = '';
 
   console.log(`🔄 Iniciando secuencia de ${action === 'ON' ? 'ENCENDIDO' : 'APAGADO'}`);
 
   if (action === 'ON') {
     // Secuencia de encendido: Generadores → Racks → Módulos
     console.log(`⚡ Paso 1: Encendiendo ${relayName}`);
-    await sendActionToBackend(pendingRelayId.value, 'ON');
+    await sendActionToBackend(relayId, 'ON');
 
     if (rackRelays.value.length > 0) {
+      console.log(`⏳ Esperando 5 segundos...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
       console.log(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
       for (const relay of rackRelays.value) {
         await sendActionToBackend(relay.id, 'ON');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
     if (moduleRelays.value.length > 0) {
+      console.log(`⏳ Esperando 5 segundos...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
       console.log(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
       for (const relay of moduleRelays.value) {
         await sendActionToBackend(relay.id, 'ON');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
@@ -378,25 +391,27 @@ const confirmToggleRelay = async () => {
       console.log(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
       for (let i = moduleRelays.value.length - 1; i >= 0; i--) {
         await sendActionToBackend(moduleRelays.value[i].id, 'OFF');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
     if (rackRelays.value.length > 0) {
+      console.log(`⏳ Esperando 5 segundos...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
       console.log(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
       for (let i = rackRelays.value.length - 1; i >= 0; i--) {
         await sendActionToBackend(rackRelays.value[i].id, 'OFF');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
+    console.log(`⏳ Esperando 5 segundos...`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
     console.log(`🛑 Paso 3: Apagando ${relayName}`);
-    await sendActionToBackend(pendingRelayId.value, 'OFF');
+    await sendActionToBackend(relayId, 'OFF');
 
     console.log(`✅ Secuencia de APAGADO completada`);
   }
-
-  showGeneratorConfirm.value = false;
-  pendingRelayId.value = null;
-  pendingAction.value = '';
 };
 
 const restartComponent = async (component: string) => {
