@@ -11,6 +11,7 @@ export interface RelayConfig {
   enabled: boolean
   invert_state: boolean
   input_id: string // ID del input físico que corresponde a este relay ("1"-"8", "" = sin input)
+  restart_delay_sec: number // Tiempo en segundos que debe permanecer apagado en un restart
 }
 
 export interface Config {
@@ -20,6 +21,9 @@ export interface Config {
   usermqtt: string
   passmqtt: string
   topic: string
+  start_sequence_delay_sec?: number
+  stop_sequence_delay_sec?: number
+  emergency_input_id?: string
   relays: RelayConfig[]
   relay_manual: string
   manual_mode_detection: 'input' | 'auto' // Método de detección: 'input' (sensor físico) o 'auto' (cálculo lógico)
@@ -33,6 +37,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: true,
     invert_state: false,
     input_id: '1',
+    restart_delay_sec: 0,
   },
   {
     id: '2',
@@ -41,6 +46,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: true,
     invert_state: false,
     input_id: '2',
+    restart_delay_sec: 5,
   },
   {
     id: '3',
@@ -49,6 +55,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: true,
     invert_state: false,
     input_id: '3',
+    restart_delay_sec: 5,
   },
   {
     id: '4',
@@ -57,6 +64,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: true,
     invert_state: false,
     input_id: '4',
+    restart_delay_sec: 5,
   },
   {
     id: '5',
@@ -65,6 +73,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: false,
     invert_state: false,
     input_id: '',
+    restart_delay_sec: 0,
   },
   {
     id: '6',
@@ -73,6 +82,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: false,
     invert_state: false,
     input_id: '',
+    restart_delay_sec: 0,
   },
   {
     id: '7',
@@ -81,6 +91,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: false,
     invert_state: false,
     input_id: '',
+    restart_delay_sec: 0,
   },
   {
     id: '8',
@@ -89,6 +100,7 @@ const defaultRelays: RelayConfig[] = [
     enabled: false,
     invert_state: false,
     input_id: '8',
+    restart_delay_sec: 0,
   },
 ]
 
@@ -137,6 +149,12 @@ export const useConfigStore = defineStore('configStore', () => {
       if (!data.relays || data.relays.length === 0) {
         data.relays = defaultRelays
       }
+      if (!data.start_sequence_delay_sec && data.start_sequence_delay_sec !== 0) {
+        data.start_sequence_delay_sec = 5
+      }
+      if (!data.stop_sequence_delay_sec && data.stop_sequence_delay_sec !== 0) {
+        data.stop_sequence_delay_sec = 5
+      }
 
       config.value = data
       loaded.value = true
@@ -149,9 +167,13 @@ export const useConfigStore = defineStore('configStore', () => {
         ipbroker: '',
         usermqtt: '',
         passmqtt: '',
+        emergency_input_id: '',
         topic: '',
+        start_sequence_delay_sec: 5,
+        stop_sequence_delay_sec: 5,
         relays: defaultRelays,
         relay_manual: '8',
+        manual_mode_detection: 'auto',
       }
     } finally {
       loading.value = false

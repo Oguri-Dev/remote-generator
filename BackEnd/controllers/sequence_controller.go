@@ -301,10 +301,14 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "❌ Racks y módulos solo aceptan ON/OFF/restart", http.StatusBadRequest)
 			return
 		}
-		
-		// Para restart, usar secuencia de reinicio con delay de 5s
+
+		// Para restart, usar delay configurable por relay (fallback 5s)
+		restartDelay := relayConfig.RestartDelaySec
+		if restartDelay <= 0 {
+			restartDelay = 5
+		}
 		if cmd.Status == "restart" {
-			taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: 5, Username: username}
+			taskQueue <- sequenceTask{RelayID: cmd.RelayID, Action: "RESTART", Delay: restartDelay, Username: username}
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(fmt.Sprintf("✅ Reiniciando %s", relayConfig.Name)))
 		} else {
@@ -329,30 +333,64 @@ func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// restartAllEquipment reinicia todos los racks y módulos con 2 segundos de diferencia
+// restartAllEquipment apaga todo el equipamiento (racks + módulos) en orden reverso,
+// luego lo enciende en orden normal, respetando los delays configurados de cada relay
 func restartAllEquipment() {
 	rackRelays := config.GetRelaysByType("rack")
 	moduleRelays := config.GetRelaysByType("modulo")
 
-	// Combinar todos los equipos de monitoreo
+	// Combinar todos los equipos de monitoreo (NO incluye generadores)
 	allEquipment := append(rackRelays, moduleRelays...)
 
-	// Reiniciar cada uno con 2 segundos de diferencia entre comandos MQTT
-	// El delay es el tiempo que tarda el relay en volver a encenderse
-	for i, relay := range allEquipment {
-		delay := 5 // Delay para que el relay vuelva a encenderse
-		// Agregar tarea al queue - el worker las procesa secuencialmente
-		// y espera 5 segundos después de cada una
+	if len(allEquipment) == 0 {
+		log.Println("⚠️ No hay equipos configurados para reiniciar")
+		return
+	}
+
+	log.Printf("🔄 Iniciando secuencia de reinicio de %d equipos", len(allEquipment))
+
+	// Fase 1: APAGAR en orden REVERSO
+	for i := len(allEquipment) - 1; i >= 0; i-- {
+		relay := allEquipment[i]
+		delay := relay.RestartDelaySec
+		if delay <= 0 {
+			delay = 5 // Delay por defecto si no está configurado
+		}
+
+		log.Printf("🛑 Apagando %s (relay %s)", relay.Name, relay.ID)
 		taskQueue <- sequenceTask{
 			RelayID: relay.ID,
-			Action:  "RESTART",
-			Delay:   delay,
+			Action:  "OFF",
+			Delay:   0, // Sin delay interno, lo manejamos con Sleep
 		}
-		// Pequeña pausa entre encolar tareas para mantener el orden
+
+		// Esperar el delay configurado del relay antes de continuar
+		log.Printf("⏳ Esperando %d segundos antes de continuar...", delay)
+		time.Sleep(time.Duration(delay) * time.Second)
+	}
+
+	// Fase 2: ENCENDER en orden NORMAL (forward)
+	for i, relay := range allEquipment {
+		delay := relay.RestartDelaySec
+		if delay <= 0 {
+			delay = 5
+		}
+
+		log.Printf("⚡ Encendiendo %s (relay %s)", relay.Name, relay.ID)
+		taskQueue <- sequenceTask{
+			RelayID: relay.ID,
+			Action:  "ON",
+			Delay:   0, // Sin delay interno
+		}
+
+		// Esperar el delay configurado antes de encender el siguiente
 		if i < len(allEquipment)-1 {
-			time.Sleep(2 * time.Second)
+			log.Printf("⏳ Esperando %d segundos antes de encender el siguiente...", delay)
+			time.Sleep(time.Duration(delay) * time.Second)
 		}
 	}
+
+	log.Println("✅ Secuencia de reinicio de equipamiento completada")
 }
 
 // GET /mqtt/sequence_state  →  { "sequenceState": { "1":"", "2":"", ... } }

@@ -195,11 +195,27 @@
         </VButton>
       </template>
     </VModal>
+
+    <!-- Modal de Parada de Emergencia -->
+    <VModal :open="showEmergencyModal" title="⚠️ Parada de Emergencia" @close="showEmergencyModal = false"
+      actions="center" noclosebutton>
+      <template #content>
+        <div class="has-text-centered" style="padding: 2rem;">
+          <h2 style="font-size: 1.8rem; margin-bottom: 1rem;">Parada de Emergencia Activada</h2>
+        </div>
+      </template>
+      <template #cancel><span style="display: none;"></span></template>
+      <template #action>
+        <VButton color="danger" @click="showEmergencyModal = false" bold style="font-size: 1.2rem; padding: 1rem 2rem;">
+          Entendido
+        </VButton>
+      </template>
+    </VModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useMqttStore } from "/@src/stores/MqttStore";
 import { usePlacaStore } from "/@src/stores/PlacaStore";
 import { useConfigStore } from "/@src/stores/ConfigStore";
@@ -246,49 +262,71 @@ const isInputOn = (relayConfig?: { input_id?: string }) => {
   return getInputPowerStatus(relayConfig) === 'Encendido';
 };
 
+// Prioriza estado del input; si no existe, usa el estado del relay reportado por la placa
+const isRelayOn = (relayId: string) => {
+  const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
+  const inputStatus = getInputPowerStatus(relayConfig);
+  if (inputStatus) return inputStatus === 'Encendido';
+
+  const relayState = placaStore.relays[relayId];
+  return relayState === 'ON';
+};
+
 // Detectar modo manual según configuración
 const isManualMode = computed(() => {
   const detectionMode = configStore.config?.manual_mode_detection || 'auto';
 
+  // Sensor físico dedicado siempre prevalece si está configurado y en LOW (activo)
+  const manualRelayId = configStore.config?.relay_manual;
+  const manualRelay = configStore.config?.relays.find(r => r.id === manualRelayId);
+  // Leer directamente el input elegido (si no hay input_id, usar el id como fallback)
+  const manualInputId = manualRelay?.input_id || manualRelayId;
+  const manualRaw = manualInputId ? placaStore.inputs[manualInputId] : undefined;
+  const manualInputActive = manualRaw === 'LOW';
+
   if (detectionMode === 'input') {
-    // Modo 1: Usar sensor físico del relay elegido para modo manual
-    const manualRelayId = configStore.config?.relay_manual;
-    const manualRelay = configStore.config?.relays.find(r => r.id === manualRelayId);
-    if (manualRelay) {
-      return isInputOn(manualRelay); // Encendido = modo manual activo
-    }
-    return false; // No hay sensor configurado
+    return manualInputActive; // Encendido = modo manual activo
   }
 
   // Modo 2: Detección automática por lógica
   // Generador OFF pero componentes siguen encendidos = modo manual
 
-  // Verificar si el relay del generador está apagado (estado reportado por la placa)
-  const isGeneratorRelayOff = generatorRelays.value.every(relay => {
-    const relayState = placaStore.relays[relay.id];
-    return relayState === 'OFF' || !relayState;
-  });
+  // Verificar si el generador está apagado (LOW = encendido)
+  const isGeneratorRelayOff = generatorRelays.value.every(relay => !isRelayOn(relay.id));
 
   // Verificar si los componentes tienen energía (inputs LOW = energía)
-  const areComponentsPowered = equipmentRelays.value.some(relay => {
-    const relayConfig = configStore.config?.relays.find(r => r.id === relay.id);
-    return isInputOn(relayConfig);
-  });
+  const areComponentsPowered = equipmentRelays.value.some(relay => isRelayOn(relay.id));
 
-  // Si generador OFF pero componentes con energía = modo manual
+  // Modo automático: solo lógica (generador OFF y equipos con energía)
   return isGeneratorRelayOff && areComponentsPowered;
 });
 const isGeneratorOn = computed(() => {
   // Verificar si algún generador está encendido
   // Si no hay generadores configurados, considerar como "encendido" para no bloquear
   if (generatorRelays.value.length === 0) return true;
-  return generatorRelays.value.some(relay => placaStore.relays[relay.id] === "ON");
+  return generatorRelays.value.some(relay => isRelayOn(relay.id));
 });
 const isSystemConnected = computed(() => placaStore.connectionStatus === "Conectada" && mqttStore.isConnected);
+
+const startSequenceDelayMs = computed(() => {
+  const seconds = configStore.config?.start_sequence_delay_sec;
+  return ((seconds ?? 5) > 0 ? seconds! : 5) * 1000;
+});
+
+const stopSequenceDelayMs = computed(() => {
+  const seconds = configStore.config?.stop_sequence_delay_sec;
+  return ((seconds ?? 5) > 0 ? seconds! : 5) * 1000;
+});
+
+const waitMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Bandera local para cubrir huecos entre updates MQTT
+const startStopInProgress = ref(false);
 
 // ===== Control de secuencias =====
 const isAnySequenceActive = computed(() =>
   Object.values(mqttStore.sequenceState).some(state => state !== "")
+    || startStopInProgress.value
 );
 
 // Deshabilitar botones de equipamiento si no hay conexión, hay secuencia activa, o está en modo manual
@@ -317,6 +355,9 @@ const areAllEquipmentRestarting = computed(() => {
 const showGeneratorConfirm = ref(false);
 const pendingRelayId = ref<string | null>(null);
 const pendingAction = ref<string>('');
+
+// Modal de emergencia cuando el input configurado está en LOW
+const showEmergencyModal = ref(false);
 
 const confirmTitle = computed(() =>
   pendingAction.value === 'ON' ? '⚡ Confirmar Encendido' : '⚠️ Confirmar Apagado'
@@ -351,6 +392,8 @@ const confirmToggleRelay = async () => {
   const action = pendingAction.value;
   const relayId = pendingRelayId.value;
   const relayName = getRelayName(pendingRelayId.value);
+  const startDelay = startSequenceDelayMs.value;
+  const stopDelay = stopSequenceDelayMs.value;
 
   // Cerrar el modal inmediatamente
   showGeneratorConfirm.value = false;
@@ -358,6 +401,7 @@ const confirmToggleRelay = async () => {
   pendingAction.value = '';
 
   console.log(`🔄 Iniciando secuencia de ${action === 'ON' ? 'ENCENDIDO' : 'APAGADO'}`);
+  startStopInProgress.value = true;
 
   if (action === 'ON') {
     // Secuencia de encendido: Generadores → Racks → Módulos
@@ -365,22 +409,22 @@ const confirmToggleRelay = async () => {
     await sendActionToBackend(relayId, 'ON');
 
     if (rackRelays.value.length > 0) {
-      console.log(`⏳ Esperando 5 segundos...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.log(`⏳ Esperando ${startDelay / 1000} segundos...`);
+      await waitMs(startDelay);
       console.log(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
       for (const relay of rackRelays.value) {
         await sendActionToBackend(relay.id, 'ON');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await waitMs(startDelay);
       }
     }
 
     if (moduleRelays.value.length > 0) {
-      console.log(`⏳ Esperando 5 segundos...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.log(`⏳ Esperando ${startDelay / 1000} segundos...`);
+      await waitMs(startDelay);
       console.log(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
       for (const relay of moduleRelays.value) {
         await sendActionToBackend(relay.id, 'ON');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await waitMs(startDelay);
       }
     }
 
@@ -391,27 +435,29 @@ const confirmToggleRelay = async () => {
       console.log(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
       for (let i = moduleRelays.value.length - 1; i >= 0; i--) {
         await sendActionToBackend(moduleRelays.value[i].id, 'OFF');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await waitMs(stopDelay);
       }
     }
 
     if (rackRelays.value.length > 0) {
-      console.log(`⏳ Esperando 5 segundos...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.log(`⏳ Esperando ${stopDelay / 1000} segundos...`);
+      await waitMs(stopDelay);
       console.log(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
       for (let i = rackRelays.value.length - 1; i >= 0; i--) {
         await sendActionToBackend(rackRelays.value[i].id, 'OFF');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await waitMs(stopDelay);
       }
     }
 
-    console.log(`⏳ Esperando 5 segundos...`);
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log(`⏳ Esperando ${stopDelay / 1000} segundos...`);
+    await waitMs(stopDelay);
     console.log(`🛑 Paso 3: Apagando ${relayName}`);
     await sendActionToBackend(relayId, 'OFF');
 
     console.log(`✅ Secuencia de APAGADO completada`);
   }
+
+  startStopInProgress.value = false;
 };
 
 const restartComponent = async (component: string) => {
@@ -453,6 +499,14 @@ const getRelayState = (relayId: string): string => {
 const activeSequences = computed(() => {
   return Object.keys(mqttStore.sequenceState).filter(relayId => mqttStore.sequenceState[relayId] !== "");
 });
+
+watch(() => placaStore.inputs, (inputs) => {
+  const emergencyId = configStore.config?.emergency_input_id;
+  if (!emergencyId) return;
+
+  const state = inputs[emergencyId];
+  showEmergencyModal.value = state === 'LOW';
+}, { deep: true });
 </script>
 
 

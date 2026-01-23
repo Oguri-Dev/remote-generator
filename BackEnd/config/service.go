@@ -21,6 +21,7 @@ type RelayConfig struct {
 	Enabled     bool   `bson:"enabled"      json:"enabled"`
 	InvertState bool   `bson:"invert_state" json:"invert_state"` // Si true: invierte ON/OFF para la secuencia
 	InputID     string `bson:"input_id"     json:"input_id"`     // ID del input físico que corresponde a este relay
+	RestartDelaySec int    `bson:"restart_delay_sec" json:"restart_delay_sec"` // Tiempo en segundos que debe estar apagado antes de encender (para RESTART)
 }
 
 type Config struct {
@@ -30,6 +31,10 @@ type Config struct {
 	Usermqtt string `bson:"usermqtt" json:"usermqtt"`
 	Passmqtt string `bson:"passmqtt" json:"passmqtt"`
 	Topic    string `bson:"topic"    json:"topic"`
+
+	StartSequenceDelaySec int `bson:"start_sequence_delay_sec" json:"start_sequence_delay_sec"`
+	StopSequenceDelaySec  int `bson:"stop_sequence_delay_sec"  json:"stop_sequence_delay_sec"`
+	EmergencyInputID      string `bson:"emergency_input_id" json:"emergency_input_id"`
 
 	// Configuración dinámica de los 8 relays
 	Relays []RelayConfig `bson:"relays" json:"relays"`
@@ -44,14 +49,14 @@ type Config struct {
 // GetDefaultRelays retorna la configuración por defecto de los 8 relays
 func GetDefaultRelays() []RelayConfig {
 	return []RelayConfig{
-		{ID: "1", Name: "Generador", Type: "generador", Enabled: true, InvertState: false, InputID: "1"},
-		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true, InvertState: false, InputID: "2"},
-		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true, InvertState: false, InputID: "3"},
-		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true, InvertState: false, InputID: "4"},
-		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
-		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
-		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false, InvertState: false, InputID: ""},
-		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false, InvertState: false, InputID: "8"},
+		{ID: "1", Name: "Generador", Type: "generador", Enabled: true, InvertState: false, InputID: "1", RestartDelaySec: 0},
+		{ID: "2", Name: "Rack Monitoreo", Type: "rack", Enabled: true, InvertState: false, InputID: "2", RestartDelaySec: 5},
+		{ID: "3", Name: "Módulo 1", Type: "modulo", Enabled: true, InvertState: false, InputID: "3", RestartDelaySec: 5},
+		{ID: "4", Name: "Módulo 2", Type: "modulo", Enabled: true, InvertState: false, InputID: "4", RestartDelaySec: 5},
+		{ID: "5", Name: "Relay 5", Type: "disabled", Enabled: false, InvertState: false, InputID: "", RestartDelaySec: 0},
+		{ID: "6", Name: "Relay 6", Type: "disabled", Enabled: false, InvertState: false, InputID: "", RestartDelaySec: 0},
+		{ID: "7", Name: "Relay 7", Type: "disabled", Enabled: false, InvertState: false, InputID: "", RestartDelaySec: 0},
+		{ID: "8", Name: "Modo Manual", Type: "manual", Enabled: false, InvertState: false, InputID: "8", RestartDelaySec: 0},
 	}
 }
 
@@ -74,6 +79,15 @@ func normalizeRelays(relays []RelayConfig) []RelayConfig {
 		// Si no tiene InputID configurado, usar el mismo ID del relay por defecto
 		if r.InputID == "" && r.Type != "disabled" {
 			r.InputID = r.ID
+		}
+		// Default de delay de reinicio: 5s para racks/módulos, 0 para generador y deshabilitados
+		if r.RestartDelaySec <= 0 {
+			switch r.Type {
+			case "rack", "modulo":
+				r.RestartDelaySec = 5
+			default:
+				r.RestartDelaySec = 0
+			}
 		}
 		out[i] = r
 	}
@@ -176,10 +190,13 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		// si no existe, creamos una doc por defecto
 		c = Config{
-			Topic:               "/dingtian/relay8718/out/#",
-			Relays:              GetDefaultRelays(),
-			RelayManual:         "8",
-			ManualModeDetection: "auto",
+			Topic:                 "/dingtian/relay8718/out/#",
+			Relays:                GetDefaultRelays(),
+			RelayManual:           "8",
+			ManualModeDetection:   "auto",
+			EmergencyInputID:      "",
+			StartSequenceDelaySec: 5,
+			StopSequenceDelaySec:  5,
 		}
 		_, err = s.client.Database(s.dbName).Collection(s.collName).InsertOne(ctx, c)
 	}
@@ -190,6 +207,15 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	c.Relays = normalizeRelays(c.Relays)
 	if c.RelayManual == "" {
 		c.RelayManual = "8"
+	}
+	if c.ManualModeDetection == "" {
+		c.ManualModeDetection = "auto"
+	}
+	if c.StartSequenceDelaySec <= 0 {
+		c.StartSequenceDelaySec = 5
+	}
+	if c.StopSequenceDelaySec <= 0 {
+		c.StopSequenceDelaySec = 5
 	}
 	if err != nil {
 		return Config{}, err
@@ -210,6 +236,16 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	if in.ManualModeDetection == "" {
 		in.ManualModeDetection = "auto"
 	}
+	if in.StartSequenceDelaySec <= 0 {
+		in.StartSequenceDelaySec = 5
+	}
+	if in.StopSequenceDelaySec <= 0 {
+		in.StopSequenceDelaySec = 5
+	}
+	// Normalizar emergency input (vacío si no configurado)
+	if in.EmergencyInputID == "" {
+		in.EmergencyInputID = ""
+	}
 
 	relaysDoc := make([]bson.M, 0, len(in.Relays))
 	for _, r := range in.Relays {
@@ -220,6 +256,7 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 			"enabled":      r.Enabled,
 			"invert_state": r.InvertState,
 			"input_id":     r.InputID,
+			"restart_delay_sec": r.RestartDelaySec,
 		})
 	}
 
@@ -231,9 +268,12 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		"usermqtt":               in.Usermqtt,
 		"passmqtt":               in.Passmqtt,
 		"topic":                  in.Topic,
+		"start_sequence_delay_sec": in.StartSequenceDelaySec,
+		"stop_sequence_delay_sec":  in.StopSequenceDelaySec,
 		"relays":                 relaysDoc,
 		"relay_manual":           in.RelayManual,
 		"manual_mode_detection":  in.ManualModeDetection,
+		"emergency_input_id":     in.EmergencyInputID,
 	}
 
 	// 2) Llaves legacy a eliminar

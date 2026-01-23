@@ -1,6 +1,7 @@
 # 🔧 Arreglando CORS en Producción
 
 ## Problema
+
 - ❌ Frontend accede desde `http://10.1.2.16`
 - ❌ Backend recibe peticiones pero rechaza por CORS
 - ❌ Error 401 en `/api/auth/login`
@@ -33,6 +34,7 @@ docker-compose logs -f
 ```
 
 Espera a ver:
+
 ```
 backend  | ✅ Servidor HTTP escuchando en puerto 8099
 frontend | ✅ Frontend listo
@@ -49,23 +51,27 @@ frontend | ✅ Frontend listo
 ## ¿Si sigues sin poder conectarte?
 
 ### Verificar que Docker está corriendo:
+
 ```powershell
 docker ps
 # Deberías ver: generador-mongodb, generador-mqtt, generador-backend, generador-frontend
 ```
 
 ### Verificar puertos abiertos:
+
 ```powershell
 netstat -ano | findstr "80 8099"
 # Deberías ver listening en ambos puertos
 ```
 
 ### Ver logs del backend:
+
 ```powershell
 docker logs generador-backend --tail 50
 ```
 
 ### Ver logs del frontend:
+
 ```powershell
 docker logs generador-frontend --tail 50
 ```
@@ -74,12 +80,12 @@ docker logs generador-frontend --tail 50
 
 ## Explicación técnica
 
-| Componente | Ubicación | Puerto | Función |
-|---|---|---|---|
-| **Frontend (Nginx)** | `http://10.1.2.16` | 80 | Sirve la página web |
-| **Backend (Go API)** | `http://10.1.2.16:8099` | 8099 | API REST + WebSocket |
-| **MongoDB** | Docker network | 27017 | BD (interna) |
-| **MQTT** | Docker network | 1883/9001 | Broker MQTT (interna) |
+| Componente           | Ubicación               | Puerto    | Función               |
+| -------------------- | ----------------------- | --------- | --------------------- |
+| **Frontend (Nginx)** | `http://10.1.2.16`      | 80        | Sirve la página web   |
+| **Backend (Go API)** | `http://10.1.2.16:8099` | 8099      | API REST + WebSocket  |
+| **MongoDB**          | Docker network          | 27017     | BD (interna)          |
+| **MQTT**             | Docker network          | 1883/9001 | Broker MQTT (interna) |
 
 El `FRONTEND_ORIGIN=http://10.1.2.16` le dice al backend: "acepta peticiones que vengan de ese navegador"
 
@@ -90,12 +96,14 @@ El `VITE_API_BASE_URL=http://10.1.2.16:8099` le dice al frontend: "las API está
 ## Para cambiar la IP en el futuro
 
 Solo edita `.env.docker`:
+
 ```env
 FRONTEND_ORIGIN=http://10.1.2.100    # Tu nueva IP
 VITE_API_BASE_URL=http://10.1.2.100:8099
 ```
 
 Y reinicia:
+
 ```powershell
 docker-compose restart
 ```
