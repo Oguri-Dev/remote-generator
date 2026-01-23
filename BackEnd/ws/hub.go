@@ -37,9 +37,10 @@ func NewHub(allowedOrigin string) *Hub {
 	return &Hub{
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				// En producción, permitir conexiones desde localhost y desde el mismo host
-				// En desarrollo, ser más permisivo
 				origin := r.Header.Get("Origin")
+				
+				// Log para debugging
+				log.Printf("🔗 WebSocket Origin: %s (esperado: %s)", origin, allowedOrigin)
 				
 				// Permitir orígenes comunes
 				allowedOrigins := []string{
@@ -52,21 +53,25 @@ func NewHub(allowedOrigin string) *Hub {
 					"http://127.0.0.1:80",
 					"http://127.0.0.1:3000",
 					"http://127.0.0.1:3069",
-					allowedOrigin, // También permitir el del .env
+					allowedOrigin,
 				}
 				
 				// Verificar si el origen está en la lista
 				for _, allowed := range allowedOrigins {
 					if origin == allowed {
+						log.Printf("✅ WebSocket origen permitido: %s", origin)
 						return true
 					}
 				}
 				
-				// En desarrollo, permitir todos los orígenes (comentar en producción)
-				if os.Getenv("ENVIRONMENT") == "development" {
+				// En desarrollo, permitir todos (si no tiene ENVIRONMENT o es 'development')
+				env := os.Getenv("ENVIRONMENT")
+				if env == "" || env == "development" {
+					log.Printf("⚠️ WebSocket origen permisivo (dev mode): %s", origin)
 					return true
 				}
 				
+				log.Printf("❌ WebSocket origen rechazado: %s", origin)
 				return false
 			},
 		},
