@@ -35,6 +35,7 @@ type Config struct {
 	StartSequenceDelaySec int `bson:"start_sequence_delay_sec" json:"start_sequence_delay_sec"`
 	StopSequenceDelaySec  int `bson:"stop_sequence_delay_sec"  json:"stop_sequence_delay_sec"`
 	EmergencyInputID      string `bson:"emergency_input_id" json:"emergency_input_id"`
+	EmergencyInputState   string `bson:"emergency_input_state" json:"emergency_input_state"` // "LOW" o "HIGH"
 
 	// Configuración dinámica de los 8 relays
 	Relays []RelayConfig `bson:"relays" json:"relays"`
@@ -242,6 +243,10 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	if in.StopSequenceDelaySec <= 0 {
 		in.StopSequenceDelaySec = 5
 	}
+	// Normalizar emergency input state (default: LOW si no configurado)
+	if in.EmergencyInputState != "LOW" && in.EmergencyInputState != "HIGH" {
+		in.EmergencyInputState = "LOW"
+	}
 	// Normalizar emergency input (vacío si no configurado)
 	if in.EmergencyInputID == "" {
 		in.EmergencyInputID = ""
@@ -274,6 +279,7 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		"relay_manual":           in.RelayManual,
 		"manual_mode_detection":  in.ManualModeDetection,
 		"emergency_input_id":     in.EmergencyInputID,
+		"emergency_input_state":  in.EmergencyInputState,
 	}
 
 	// 2) Llaves legacy a eliminar

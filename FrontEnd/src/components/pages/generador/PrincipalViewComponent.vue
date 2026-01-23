@@ -15,6 +15,16 @@
             </div>
           </div>
 
+          <!-- Banner de Parada de Emergencia Activa -->
+          <div v-if="emergencyStopActive" class="column is-12">
+            <div class="dashboard-card is-welcome" style="background-color: #ff3860; color: white;">
+              <div class="welcome-title">
+                <h3 class="dark-inverted" style="color: white;">🚨 Parada de Emergencia Activada</h3>
+                <h2 style="color: white;">El sistema está bloqueado. Todos los controles están deshabilitados.</h2>
+              </div>
+            </div>
+          </div>
+
           <!-- Tarjetas de Estado (Dinámicas) -->
           <div v-for="relay in enabledRelays" :key="relay.id" class="column is-12">
             <div class="dashboard-card is-welcome">
@@ -198,7 +208,7 @@
 
     <!-- Modal de Parada de Emergencia -->
     <VModal :open="showEmergencyModal" title="⚠️ Parada de Emergencia" @close="showEmergencyModal = false"
-      actions="center" noclosebutton>
+      actions="center">
       <template #content>
         <div class="has-text-centered" style="padding: 2rem;">
           <h2 style="font-size: 1.8rem; margin-bottom: 1rem;">Parada de Emergencia Activada</h2>
@@ -206,9 +216,15 @@
       </template>
       <template #cancel><span style="display: none;"></span></template>
       <template #action>
-        <VButton color="danger" @click="showEmergencyModal = false" bold style="font-size: 1.2rem; padding: 1rem 2rem;">
-          Entendido
-        </VButton>
+        <div class="has-text-centered">
+          <p style="margin-bottom: 1rem; font-size: 1.1rem; color: #ff6b6b;">
+            Alerta de emergencia. Los controles permanecen bloqueados mientras el input siga activo.
+          </p>
+          <VButton color="danger" @click="showEmergencyModal = false" bold
+            style="font-size: 1.2rem; padding: 1rem 2rem;">
+            Entendido
+          </VButton>
+        </div>
       </template>
     </VModal>
   </div>
@@ -326,17 +342,17 @@ const startStopInProgress = ref(false);
 // ===== Control de secuencias =====
 const isAnySequenceActive = computed(() =>
   Object.values(mqttStore.sequenceState).some(state => state !== "")
-    || startStopInProgress.value
+  || startStopInProgress.value
 );
 
 // Deshabilitar botones de equipamiento si no hay conexión, hay secuencia activa, o está en modo manual
 const areButtonsDisabled = computed(() =>
-  isAnySequenceActive.value || !isSystemConnected.value || isManualMode.value
+  isAnySequenceActive.value || !isSystemConnected.value || isManualMode.value || emergencyStopActive.value
 );
 
 // Habilitar botón del generador solo si no hay NINGUNA secuencia activa
 const canToggleGenerator = computed(() =>
-  !isAnySequenceActive.value && isSystemConnected.value && !isManualMode.value
+  !isAnySequenceActive.value && isSystemConnected.value && !isManualMode.value && !emergencyStopActive.value
 );
 
 const isButtonDisabled = (relayId: string) => {
@@ -358,6 +374,9 @@ const pendingAction = ref<string>('');
 
 // Modal de emergencia cuando el input configurado está en LOW
 const showEmergencyModal = ref(false);
+
+// Estado de parada de emergencia activa
+const emergencyStopActive = ref(false);
 
 const confirmTitle = computed(() =>
   pendingAction.value === 'ON' ? '⚡ Confirmar Encendido' : '⚠️ Confirmar Apagado'
@@ -409,22 +428,26 @@ const confirmToggleRelay = async () => {
     await sendActionToBackend(relayId, 'ON');
 
     if (rackRelays.value.length > 0) {
-      console.log(`⏳ Esperando ${startDelay / 1000} segundos...`);
-      await waitMs(startDelay);
       console.log(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
       for (const relay of rackRelays.value) {
+        // Esperar el delay asignado a este rack antes de encenderlo
+        const rackDelay = (relay.restart_delay_sec ?? startDelay / 1000) * 1000;
+        console.log(`⏳ Esperando ${rackDelay / 1000} segundos antes de encender ${relay.name}...`);
+        await waitMs(rackDelay);
+        console.log(`⚡ Encendiendo ${relay.name}`);
         await sendActionToBackend(relay.id, 'ON');
-        await waitMs(startDelay);
       }
     }
 
     if (moduleRelays.value.length > 0) {
-      console.log(`⏳ Esperando ${startDelay / 1000} segundos...`);
-      await waitMs(startDelay);
       console.log(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
       for (const relay of moduleRelays.value) {
+        // Esperar el delay asignado a este módulo antes de encenderlo
+        const moduleDelay = (relay.restart_delay_sec ?? startDelay / 1000) * 1000;
+        console.log(`⏳ Esperando ${moduleDelay / 1000} segundos antes de encender ${relay.name}...`);
+        await waitMs(moduleDelay);
+        console.log(`⚡ Encendiendo ${relay.name}`);
         await sendActionToBackend(relay.id, 'ON');
-        await waitMs(startDelay);
       }
     }
 
@@ -434,23 +457,31 @@ const confirmToggleRelay = async () => {
     if (moduleRelays.value.length > 0) {
       console.log(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
       for (let i = moduleRelays.value.length - 1; i >= 0; i--) {
-        await sendActionToBackend(moduleRelays.value[i].id, 'OFF');
-        await waitMs(stopDelay);
+        const relay = moduleRelays.value[i];
+        console.log(`🛑 Apagando ${relay.name}`);
+        await sendActionToBackend(relay.id, 'OFF');
+
+        // Esperar el delay asignado a ESTE módulo antes de apagar el siguiente
+        const relayDelay = (relay.restart_delay_sec ?? stopDelay / 1000) * 1000;
+        console.log(`⏳ Esperando ${relayDelay / 1000} segundos...`);
+        await waitMs(relayDelay);
       }
     }
 
     if (rackRelays.value.length > 0) {
-      console.log(`⏳ Esperando ${stopDelay / 1000} segundos...`);
-      await waitMs(stopDelay);
       console.log(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
       for (let i = rackRelays.value.length - 1; i >= 0; i--) {
-        await sendActionToBackend(rackRelays.value[i].id, 'OFF');
-        await waitMs(stopDelay);
+        const relay = rackRelays.value[i];
+        console.log(`🛑 Apagando ${relay.name}`);
+        await sendActionToBackend(relay.id, 'OFF');
+
+        // Esperar el delay asignado a ESTE rack antes de apagar el siguiente
+        const relayDelay = (relay.restart_delay_sec ?? stopDelay / 1000) * 1000;
+        console.log(`⏳ Esperando ${relayDelay / 1000} segundos...`);
+        await waitMs(relayDelay);
       }
     }
 
-    console.log(`⏳ Esperando ${stopDelay / 1000} segundos...`);
-    await waitMs(stopDelay);
     console.log(`🛑 Paso 3: Apagando ${relayName}`);
     await sendActionToBackend(relayId, 'OFF');
 
@@ -505,8 +536,18 @@ watch(() => placaStore.inputs, (inputs) => {
   if (!emergencyId) return;
 
   const state = inputs[emergencyId];
-  showEmergencyModal.value = state === 'LOW';
-}, { deep: true });
+  const triggerState = configStore.config?.emergency_input_state || 'LOW';
+
+  // Si el input está en estado de emergencia, activar parada
+  if (state === triggerState) {
+    emergencyStopActive.value = true;
+    showEmergencyModal.value = true;
+  } else {
+    // Solo permitir cerrar el modal cuando el input vuelva al estado OFF
+    emergencyStopActive.value = false;
+    showEmergencyModal.value = false;
+  }
+}, { deep: true, immediate: true });
 </script>
 
 

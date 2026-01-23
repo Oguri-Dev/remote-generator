@@ -24,6 +24,7 @@ export interface Config {
   start_sequence_delay_sec?: number
   stop_sequence_delay_sec?: number
   emergency_input_id?: string
+  emergency_input_state?: string // 'LOW' o 'HIGH'
   relays: RelayConfig[]
   relay_manual: string
   manual_mode_detection: 'input' | 'auto' // Método de detección: 'input' (sensor físico) o 'auto' (cálculo lógico)
@@ -168,6 +169,7 @@ export const useConfigStore = defineStore('configStore', () => {
         usermqtt: '',
         passmqtt: '',
         emergency_input_id: '',
+        emergency_input_state: 'LOW',
         topic: '',
         start_sequence_delay_sec: 5,
         stop_sequence_delay_sec: 5,

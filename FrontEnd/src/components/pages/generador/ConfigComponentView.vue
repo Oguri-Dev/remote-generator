@@ -46,6 +46,7 @@ const form = reactive({
   start_sequence_delay_sec: 5 as number | string,
   stop_sequence_delay_sec: 5 as number | string,
   emergency_input_id: '',
+  emergency_input_state: 'LOW' as string,
   relay_manual: '8',
   manual_mode_detection: 'auto' as 'input' | 'auto',
   relays: [] as RelayConfig[],
@@ -134,6 +135,7 @@ function normalizarPayload() {
     start_sequence_delay_sec: Number(form.start_sequence_delay_sec) || 0,
     stop_sequence_delay_sec: Number(form.stop_sequence_delay_sec) || 0,
     emergency_input_id: String(form.emergency_input_id || '').trim(),
+    emergency_input_state: String(form.emergency_input_state || 'LOW').trim(),
     relay_manual: String(form.relay_manual || '8').trim(),
     manual_mode_detection: form.manual_mode_detection || 'auto',
     relays: form.relays.map(r => ({
@@ -385,7 +387,21 @@ onMounted(load)
                     </div>
                   </VControl>
                   <p class="help">
-                    Cuando este input esté en LOW se mostrará un aviso: "Parada de Emergencia Activada".
+                    Selecciona el input que activará la parada de emergencia.
+                  </p>
+                </VField>
+
+                <VField v-if="form.emergency_input_id" label="Activación por estado">
+                  <VControl>
+                    <div class="select is-fullwidth">
+                      <select v-model="form.emergency_input_state">
+                        <option value="LOW">LOW (Input activo/LOW = Emergencia)</option>
+                        <option value="HIGH">HIGH (Input inactivo/HIGH = Emergencia)</option>
+                      </select>
+                    </div>
+                  </VControl>
+                  <p class="help">
+                    Indica en qué estado del input se activa la parada de emergencia.
                   </p>
                 </VField>
               </div>

@@ -10,7 +10,7 @@ export const useMqttStore = defineStore('mqttStore', {
       '2': '', // Rack Monitoreo
       '3': '', // Módulo 1
       '4': '', // Módulo 2
-    },
+    } as Record<string, string>,
   }),
 
   actions: {
