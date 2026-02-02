@@ -10,7 +10,7 @@ export const usePlacaStore = defineStore('placaStore', {
     serialNumber: '',
     relayCount: 0,
     inputCount: 0,
-    lastMessageTime: ref(Date.now()), // ⏳ Usa `ref()` para reactividad real
+    lastMessageTime: ref(0), // ⏳ Inicializado en 0 para mostrar desconectado hasta primer mensaje
     connectionStatus: ref<'Desconectada' | 'Intentando conexión' | 'Conectada'>(
       'Desconectada'
     ),
