@@ -54,6 +54,8 @@ services:
         condition: service_healthy
       mqtt-broker:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DB: generator
