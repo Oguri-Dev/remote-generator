@@ -20,7 +20,7 @@ func MongoConnect() *mongo.Client {
 	// Obtener URI de MongoDB desde variable de entorno o usar valor por defecto
 	mongoURI := os.Getenv("MONGODB_URI")
 	if mongoURI == "" {
-		mongoURI = "mongodb://admin:changeme@localhost:27017"
+		mongoURI = "mongodb://localhost:27017"
 	}
 	mongoDBName := os.Getenv("MONGODB_DB")
 	if mongoDBName == "" {
