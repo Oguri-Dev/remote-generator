@@ -46,12 +46,10 @@ export const usePlacaStore = defineStore('placaStore', {
       }
 
       // Procesar INPUTS (estado real): /out/input1 {"idx":"1","status":"HIGH"}
-      // PRIORIDAD: inputs son la fuente de verdad (sensores reales)
       if (topic.includes('/out/input')) {
         try {
           const parsedMessage = JSON.parse(message)
           const idx = parsedMessage.idx?.toString()
-          // Guardar SOLO en inputs (estado real del sensor)
           if (idx) {
             this.inputs[idx] = parsedMessage.status
           }
@@ -59,30 +57,26 @@ export const usePlacaStore = defineStore('placaStore', {
           // Si no es JSON, ignorar
         }
       }
-      // Procesar formato largo de relays: /out/relay1 {"idx":"1","status":"ON"} (legacy)
-      // Solo si NO hay input para este relay (para no sobrescribir)
+      // Procesar formato largo de relays: /out/relay1 {"idx":"1","status":"ON"}
+      // SIEMPRE guardar el estado del relay (independiente de inputs)
       else if (topic.includes('/out/relay')) {
         try {
           const parsedMessage = JSON.parse(message)
           const idx = parsedMessage.idx?.toString()
-          // Guardar en relays SOLO si no existe input para este índice
-          if (idx && !this.inputs[idx]) {
+          if (idx) {
             this.relays[idx] = parsedMessage.status
           }
         } catch (e) {
           // Si no es JSON, ignorar
         }
       }
-      // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc. (legacy)
-      // Solo si NO hay input para este relay
+      // Procesar formato corto: /out/r1 ON, /out/r2 OFF, etc.
+      // SIEMPRE guardar el estado del relay
       else if (topic.match(/\/out\/r\d+$/)) {
         const relayMatch = topic.match(/\/r(\d+)$/)
         if (relayMatch) {
           const idx = relayMatch[1]
-          // Guardar SOLO si no existe input para este índice
-          if (!this.inputs[idx]) {
-            this.relays[idx] = message.trim()
-          }
+          this.relays[idx] = message.trim()
         }
       } else if (topic.includes('/ip')) {
         this.ip = message
