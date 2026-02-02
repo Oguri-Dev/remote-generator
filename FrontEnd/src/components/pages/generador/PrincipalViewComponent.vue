@@ -278,14 +278,28 @@ const isInputOn = (relayConfig?: { input_id?: string }) => {
   return getInputPowerStatus(relayConfig) === 'Encendido';
 };
 
-// Prioriza estado del input; si no existe, usa el estado del relay reportado por la placa
+// Lee solo el estado del relay (sin considerar inputs)
+const isRelayOnByRelayState = (relayId: string) => {
+  const relayState = placaStore.relays[relayId];
+  return relayState === 'ON';
+};
+
+// Para generadores: prioriza input si existe, sino usa relay
+// Para racks/módulos: usa solo el estado del relay
 const isRelayOn = (relayId: string) => {
   const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
+  
+  // Para racks y módulos, ignorar input y usar solo relay
+  if (relayConfig?.type === 'rack' || relayConfig?.type === 'modulo') {
+    return isRelayOnByRelayState(relayId);
+  }
+  
+  // Para generadores, priorizar input si está configurado
   const inputStatus = getInputPowerStatus(relayConfig);
   if (inputStatus) return inputStatus === 'Encendido';
 
-  const relayState = placaStore.relays[relayId];
-  return relayState === 'ON';
+  // Fallback: usar estado del relay
+  return isRelayOnByRelayState(relayId);
 };
 
 // Detectar modo manual según configuración
@@ -514,7 +528,15 @@ const getRelayState = (relayId: string): string => {
   // Obtener la configuración del relay para saber qué input usar
   const relayConfig = configStore.config?.relays.find(r => r.id === relayId);
 
-  // Si el relay tiene un input_id configurado, leer desde ese input (LOW = Encendido)
+  // Para racks y módulos, usar solo el estado del relay
+  if (relayConfig?.type === 'rack' || relayConfig?.type === 'modulo') {
+    const relayState = placaStore.relays[relayId] || '';
+    if (relayState === 'ON') return 'Encendido';
+    if (relayState === 'OFF') return 'Apagado';
+    return relayState;
+  }
+
+  // Para generadores: Si el relay tiene un input_id configurado, leer desde ese input (LOW = Encendido)
   const inputStatus = getInputPowerStatus(relayConfig);
   if (inputStatus) return inputStatus;
 
