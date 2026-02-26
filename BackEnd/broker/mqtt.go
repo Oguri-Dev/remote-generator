@@ -117,13 +117,33 @@ func stopWatchdog() {
 	watchMu.Unlock()
 }
 
+// getActiveBrokerConfig retorna el broker, usuario y contraseña según el modo activo
+func getActiveBrokerConfig(c config.Config) (broker, user, pass string) {
+	// Si BrokerMode está vacío, usar configuración legacy
+	if c.BrokerMode == "" || c.BrokerMode == "cloud" {
+		// Modo nube o legacy
+		if c.CloudBroker != "" {
+			return c.CloudBroker, c.CloudUser, c.CloudPass
+		}
+		// Fallback a configuración legacy
+		return c.Ipbroker, c.Usermqtt, c.Passmqtt
+	}
+	// Modo local
+	if c.LocalBroker != "" {
+		return c.LocalBroker, c.LocalUser, c.LocalPass
+	}
+	// Fallback a configuración legacy
+	return c.Ipbroker, c.Usermqtt, c.Passmqtt
+}
+
 func connect(c config.Config) {
 	// fija la config activa
 	mu.Lock()
 	curCfg = c
 	mu.Unlock()
 
-	url, err := brokerURL(c.Ipbroker)
+	broker, user, pass := getActiveBrokerConfig(c)
+	url, err := brokerURL(broker)
 	if err != nil {
 		log.Printf("⚠️ MQTT: Error en broker URL: %v", err)
 		if onStatus != nil {
@@ -132,13 +152,19 @@ func connect(c config.Config) {
 		return
 	}
 
+	mode := c.BrokerMode
+	if mode == "" {
+		mode = "cloud"
+	}
+	log.Printf("🔌 MQTT conectando en modo %s: %s", mode, url)
+
 	atomic.StoreUint64(&retryCount, 0)
 
 	opts := mqtt.NewClientOptions().
 		AddBroker(url).
 		SetClientID("generador-back-" + time.Now().Format("150405.000")).
-		SetUsername(c.Usermqtt).
-		SetPassword(c.Passmqtt).
+		SetUsername(user).
+		SetPassword(pass).
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
 		SetConnectRetryInterval(retryEvery).

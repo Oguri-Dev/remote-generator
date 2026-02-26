@@ -43,6 +43,13 @@ const form = reactive({
   usermqtt: '',
   passmqtt: '',
   topic: '',
+  broker_mode: 'cloud' as 'cloud' | 'local',
+  cloud_broker: '',
+  cloud_user: '',
+  cloud_pass: '',
+  local_broker: '',
+  local_user: '',
+  local_pass: '',
   start_sequence_delay_sec: 5 as number | string,
   stop_sequence_delay_sec: 5 as number | string,
   emergency_input_id: '',
@@ -132,6 +139,13 @@ function normalizarPayload() {
     usermqtt: String(form.usermqtt || '').trim(),
     passmqtt: String(form.passmqtt || ''),
     topic: String(form.topic || '').trim(),
+    broker_mode: String(form.broker_mode || 'cloud').trim(),
+    cloud_broker: String(form.cloud_broker || '').trim(),
+    cloud_user: String(form.cloud_user || '').trim(),
+    cloud_pass: String(form.cloud_pass || ''),
+    local_broker: String(form.local_broker || '').trim(),
+    local_user: String(form.local_user || '').trim(),
+    local_pass: String(form.local_pass || ''),
     start_sequence_delay_sec: Number(form.start_sequence_delay_sec) || 0,
     stop_sequence_delay_sec: Number(form.stop_sequence_delay_sec) || 0,
     emergency_input_id: String(form.emergency_input_id || '').trim(),
@@ -224,11 +238,87 @@ onMounted(load)
                 <VInput v-model.number="form.idplaca" type="number" placeholder="1" />
               </VControl>
             </VField>
-            <VField label="IP del broker MQTT">
+
+            <!-- Configuración legacy (compatibilidad) -->
+            <VField label="IP del broker MQTT (Legacy - usar configuración dual abajo)">
               <VControl icon="feather:server">
                 <VInput v-model="form.ipbroker" placeholder="192.168.0.20" />
               </VControl>
             </VField>
+
+            <!-- Configuración Dual de Brokers -->
+            <hr class="my-4" />
+            <h3 class="title is-5 mb-3">
+              <span class="icon-text">
+                <span class="icon"><i class="fas fa-exchange-alt"></i></span>
+                <span>Configuración Dual de Brokers (Nube/Local)</span>
+              </span>
+            </h3>
+
+            <div class="box has-background-light mb-4">
+              <h4 class="subtitle is-6 mb-3">
+                <span class="icon-text">
+                  <span class="icon has-text-success"><i class="fas fa-cloud"></i></span>
+                  <span>Broker Nube</span>
+                </span>
+              </h4>
+              <VField label="URL Broker Nube">
+                <VControl icon="feather:cloud">
+                  <VInput v-model="form.cloud_broker" placeholder="wss://broker.ejemplo.com:8084/mqtt" />
+                </VControl>
+                <p class="help">Ejemplo: wss://broker.ejemplo.com:8084/mqtt o tcp://broker.ejemplo.com:1883</p>
+              </VField>
+              <div class="columns">
+                <div class="column">
+                  <VField label="Usuario Nube">
+                    <VControl icon="feather:user">
+                      <VInput v-model="form.cloud_user" placeholder="usuario_nube" />
+                    </VControl>
+                  </VField>
+                </div>
+                <div class="column">
+                  <VField label="Contraseña Nube">
+                    <VControl icon="feather:lock">
+                      <VInput v-model="form.cloud_pass" type="password" placeholder="••••••" />
+                    </VControl>
+                  </VField>
+                </div>
+              </div>
+            </div>
+
+            <div class="box has-background-light mb-4">
+              <h4 class="subtitle is-6 mb-3">
+                <span class="icon-text">
+                  <span class="icon has-text-warning"><i class="fas fa-home"></i></span>
+                  <span>Broker Local (Contingencia)</span>
+                </span>
+              </h4>
+              <VField label="URL Broker Local">
+                <VControl icon="feather:server">
+                  <VInput v-model="form.local_broker" placeholder="mqtt-broker:1883 o tcp://192.168.1.100:1883" />
+                </VControl>
+                <p class="help">Ejemplo: mqtt-broker:1883 (dentro de Docker) o tcp://192.168.1.100:1883</p>
+              </VField>
+              <div class="columns">
+                <div class="column">
+                  <VField label="Usuario Local">
+                    <VControl icon="feather:user">
+                      <VInput v-model="form.local_user" placeholder="usuario_local" />
+                    </VControl>
+                  </VField>
+                </div>
+                <div class="column">
+                  <VField label="Contraseña Local">
+                    <VControl icon="feather:lock">
+                      <VInput v-model="form.local_pass" type="password" placeholder="••••••" />
+                    </VControl>
+                  </VField>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4" />
+
             <div class="columns">
               <div class="column">
                 <VField label="Usuario MQTT">

@@ -18,6 +18,15 @@ type ConfigGenerador struct {
 	Passmqtt string `bson:"passmqtt"  json:"passmqtt"`
 	Topic    string `bson:"topic"     json:"topic"` // tópico de suscripción
 
+	// Configuración dual de brokers (nube/local)
+	BrokerMode      string `bson:"broker_mode"       json:"broker_mode"`       // "cloud" o "local"
+	CloudBroker     string `bson:"cloud_broker"      json:"cloud_broker"`      // URL broker nube
+	CloudUser       string `bson:"cloud_user"        json:"cloud_user"`        // Usuario nube
+	CloudPass       string `bson:"cloud_pass"        json:"cloud_pass"`        // Contraseña nube
+	LocalBroker     string `bson:"local_broker"      json:"local_broker"`      // URL broker local
+	LocalUser       string `bson:"local_user"        json:"local_user"`        // Usuario local
+	LocalPass       string `bson:"local_pass"        json:"local_pass"`        // Contraseña local
+
 	// Configuración dinámica de los 8 relays
 	Relays []RelayConfig `bson:"relays" json:"relays"`
 

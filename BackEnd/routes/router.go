@@ -16,6 +16,7 @@ func SetupRouter(hub *ws.Hub, cfgApi *controllers.ConfigAPI) http.Handler {
 	api := r.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/config", cfgApi.Get).Methods("GET")
 	api.HandleFunc("/config", cfgApi.Put).Methods("PUT")
+	api.HandleFunc("/config/broker-mode", cfgApi.SwitchBrokerMode).Methods("POST")
 	api.HandleFunc("/publish", controllers.PublishHandler).Methods("POST")
 
 	//user
