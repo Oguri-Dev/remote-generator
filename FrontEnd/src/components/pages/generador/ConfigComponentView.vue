@@ -255,6 +255,16 @@ onMounted(load)
               </span>
             </h3>
 
+            <div class="notification is-info is-light mb-4">
+              <p class="mb-2"><strong>💡 Modo de contingencia:</strong></p>
+              <ul style="margin-left: 1rem;">
+                <li>Configure ambos brokers (nube y local)</li>
+                <li>Use el botón en el header (☁️/🏠) para cambiar entre modos</li>
+                <li>La placa se reconfigurará automáticamente al cambiar</li>
+                <li>Útil cuando falla la conexión a internet</li>
+              </ul>
+            </div>
+
             <div class="box has-background-light mb-4">
               <h4 class="subtitle is-6 mb-3">
                 <span class="icon-text">

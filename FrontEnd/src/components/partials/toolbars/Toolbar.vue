@@ -43,12 +43,20 @@ const toggleBrokerMode = async () => {
   
   isSwitchingMode.value = true;
   try {
+    notyf.info(`Cambiando a modo ${modeName}... Reconfigurando placa...`);
+    
     await api.post('/config/broker-mode', { mode: newMode });
     await configStore.loadConfig(); // Recargar configuración
-    notyf.success(`Modo cambiado a: ${modeName}`);
+    
+    notyf.success(`✅ Modo cambiado a: ${modeName}\n⏳ La placa se está reconfigurando automáticamente...`);
+    
+    // Mensaje adicional sobre el backend
+    setTimeout(() => {
+      notyf.info('💡 El backend se reconectará automáticamente al nuevo broker');
+    }, 1500);
   } catch (error) {
     console.error('Error cambiando modo broker:', error);
-    notyf.error('Error al cambiar modo de conexión');
+    notyf.error('❌ Error al cambiar modo de conexión');
   } finally {
     isSwitchingMode.value = false;
   }
