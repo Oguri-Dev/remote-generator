@@ -1,3 +1,7 @@
+//go:build checkconfig
+
+// Script de diagnóstico: imprime la configuración almacenada en Mongo.
+// Uso: go run -tags checkconfig ./scripts/check_config.go
 package main
 
 import (

@@ -10,7 +10,6 @@ import { createPinia } from 'pinia'
 import { createRouter } from './router'
 import VueroApp from './VueroApp.vue'
 import './styles'
-import 'leaflet/dist/leaflet.css'
 
 export type VueroAppContext = Awaited<ReturnType<typeof createApp>>
 export type VueroPlugin = (vuero: VueroAppContext) => void | Promise<void>

@@ -12,9 +12,12 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"generador/auth"
 	"generador/broker"
+	"generador/camera"
 	"generador/config"
 	"generador/controllers"
+	"generador/crypto"
 	"generador/routes"
 	"generador/ws"
 )
@@ -38,12 +41,40 @@ func main() {
 	collName := envOr("MONGODB_COLL", "config")
 	frontend := envOr("FRONTEND_ORIGIN", "http://localhost:3069")
 	port := envOr("PORT", "8099")
+	sessionSecret := envOr("SESSION_SECRET", "")
+	encKey := envOr("CONFIG_ENC_KEY", "")
+	mediamtxAPI := envOr("MEDIAMTX_API", "") // p.ej. http://mediamtx:9997 (vacío = sin cámara)
+	isProd := envOr("ENVIRONMENT", "development") == "production"
 
 	log.Printf("📍 Puerto configurado: %s", port)
 
+	// --- Sesiones firmadas (HMAC) ---
+	// El secreto es obligatorio: sin él la firma de sesión no aporta seguridad.
+	sessions, err := auth.NewManager(sessionSecret, auth.DefaultTTL, isProd)
+	if err != nil {
+		log.Fatalf("❌ SESSION_SECRET inválido o ausente: %v. Define una cadena aleatoria de >=16 caracteres en el entorno.", err)
+	}
+	log.Println("✅ Gestor de sesiones inicializado")
+
+	// --- Cifrador de secretos en reposo (AES-GCM) ---
+	// Cifra las contraseñas del broker MQTT antes de guardarlas en Mongo.
+	cipher, err := crypto.New(encKey)
+	if err != nil {
+		log.Fatalf("❌ CONFIG_ENC_KEY inválida o ausente: %v. Define una cadena aleatoria de >=16 caracteres en el entorno.", err)
+	}
+	log.Println("✅ Cifrador de configuración inicializado")
+
+	// --- Gestor de cámara (MediaMTX) ---
+	// Sincroniza el RTSP de la cámara con MediaMTX, que lo republica como HLS.
+	// Si MEDIAMTX_API está vacío, el gestor es no-op (sistema funciona sin cámara).
+	camMgr := camera.NewManager(mediamtxAPI)
+	if mediamtxAPI != "" {
+		log.Printf("✅ Gestor de cámara apuntando a MediaMTX: %s", mediamtxAPI)
+	}
+
 	// --- Mongo & Config ---
 	ctx := context.Background()
-	store, err := config.NewStore(ctx, mongoURI, dbName, collName)
+	store, err := config.NewStore(ctx, mongoURI, dbName, collName, cipher)
 	if err != nil {
 		log.Fatalf("❌ Error conectando a MongoDB: %v", err)
 	}
@@ -53,7 +84,7 @@ func main() {
 	log.Println("✅ MongoDB y configuración inicializados")
 
 	// --- WS Hub ---
-	hub := ws.NewHub(frontend)
+	hub := ws.NewHub(frontend, sessions)
 	log.Println("✅ WebSocket Hub creado")
 
 	// ⬅️⬅️ 1) Broadcaster para /mqtt/sequence_state (progresos)
@@ -103,15 +134,21 @@ func main() {
 	config.SubscribeChanges(func(c config.Config, d config.Diff) {
 		broker.RestartIfNeeded(c, d)
 	})
+
+	// --- Cámara: sincronizar con MediaMTX al arrancar y ante cambios de config ---
+	camMgr.Sync(config.Get())
+	config.SubscribeChanges(func(c config.Config, _ config.Diff) {
+		camMgr.Sync(c)
+	})
 	log.Println("✅ Cliente MQTT inicializado")
 
 	// --- HTTP ---
-	cfgApi := &controllers.ConfigAPI{Store: store}
+	cfgApi := &controllers.ConfigAPI{Store: store, Sessions: sessions}
 
 	// Inyectar ConfigAPI para logging de actividades
 	controllers.SetConfigAPI(cfgApi)
 
-	handler := routes.SetupRouter(hub, cfgApi)
+	handler := routes.SetupRouter(hub, cfgApi, sessions)
 
 	srv := &http.Server{
 		Addr:         ":" + port,
@@ -168,18 +205,21 @@ func envOr(k, def string) string {
 	return def
 }
 
-func withCors(next http.Handler, origin string) http.Handler {
+// withCors aplica CORS de forma estricta: solo refleja el Origin de la petición
+// si coincide exactamente con el origen permitido configurado (FRONTEND_ORIGIN).
+// Como se usa Allow-Credentials=true, NUNCA se puede responder con "*" ni reflejar
+// orígenes arbitrarios; hacerlo permitiría a cualquier sitio hacer peticiones
+// autenticadas con la cookie de sesión del usuario.
+func withCors(next http.Handler, allowedOrigin string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowOrigin := origin
-		if allowOrigin == "" {
-			allowOrigin = r.Header.Get("Origin") // en dev
+		reqOrigin := r.Header.Get("Origin")
+		if allowedOrigin != "" && reqOrigin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		}
-		if allowOrigin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
-		}
-		w.Header().Set("Access-Control-Allow-Credentials", "true") // <- imprescindible
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

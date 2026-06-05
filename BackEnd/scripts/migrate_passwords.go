@@ -1,3 +1,7 @@
+//go:build migratepasswords
+
+// Script para migrar contraseñas de texto plano a bcrypt
+// Uso: go run -tags migratepasswords ./scripts/migrate_passwords.go
 package main
 
 import (
@@ -11,9 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
-
-// Script para migrar contraseñas de texto plano a bcrypt
-// Uso: go run scripts/migrate_passwords.go
 
 func main() {
 	// Conectar a MongoDB

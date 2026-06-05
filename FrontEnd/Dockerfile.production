@@ -1,5 +1,5 @@
 # ===== Build Stage =====
-FROM node:18-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Habilitar pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Habilitar pnpm (versión fija para coincidir con el lockfile)
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 # Copiar archivos de dependencias
 COPY package.json pnpm-lock.yaml .npmrc ./
@@ -31,6 +31,8 @@ COPY . .
 # Build de producción con argumentos
 ARG VITE_API_BASE_URL=http://localhost:8099
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ARG VITE_MEDIAMTX_WHEP=http://localhost:8889
+ENV VITE_MEDIAMTX_WHEP=$VITE_MEDIAMTX_WHEP
 
 RUN NODE_OPTIONS=--max-old-space-size=6144 pnpm build
 
@@ -52,11 +54,11 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 
 # ===== Alternative: SSR Production Stage =====
-FROM node:18-alpine AS ssr-production
+FROM node:22-alpine AS ssr-production
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 # Crear usuario no-root
 RUN addgroup -g 1000 appuser && \

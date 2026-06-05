@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useNotyf } from '/@src/composable/useNotyf'
-import axios from 'axios'
+import { api } from '/@src/services/apiUser'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -156,8 +156,6 @@ const showClearConfirm = ref(false);
 const dateFrom = ref('');
 const dateTo = ref('');
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8099';
-
 // Computed para filtrar logs por fecha
 const filteredLogs = computed(() => {
   if (!dateFrom.value && !dateTo.value) {
@@ -183,7 +181,7 @@ onMounted(() => {
 const loadLogs = async () => {
   isLoading.value = true;
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/activity/logs`);
+    const response = await api.get('/activity/logs');
     logs.value = response.data || [];
   } catch (error) {
     notyf.error('Error al cargar el historial de activaciones');
@@ -195,7 +193,7 @@ const loadLogs = async () => {
 
 const loadStats = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/activity/stats`);
+    const response = await api.get('/activity/stats');
     stats.value = response.data;
   } catch (error) {
     console.error('Error al cargar estadísticas:', error);
@@ -205,7 +203,7 @@ const loadStats = async () => {
 const clearLogs = async () => {
   isClearing.value = true;
   try {
-    await axios.delete(`${API_BASE_URL}/api/activity/logs`);
+    await api.delete('/activity/logs');
     notyf.success('Historial eliminado correctamente');
     showClearConfirm.value = false;
     logs.value = [];

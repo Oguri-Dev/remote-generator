@@ -5,9 +5,7 @@ import { useDarkmode } from '/@src/stores/darkmode'
 import { usePanels } from '/@src/stores/panels'
 import { useRouter } from 'vue-router';
 import { useUserSession } from '/@src/stores/userSession';
-import { useConfigStore } from '/@src/stores/ConfigStore';
-import { useNotyf } from '/@src/composable/useNotyf';
-import axios from 'axios';
+import { useCameraStore } from '/@src/stores/CameraStore';
 
 const router = useRouter();
 const darkmode = useDarkmode()
@@ -15,9 +13,14 @@ const { locale } = useI18n()
 const panels = usePanels()
 const isOpen = ref(false);
 const userSession = useUserSession();
-const configStore = useConfigStore();
-const notyf = useNotyf();
-const api = axios.create({ baseURL: '/api', withCredentials: true });
+const camera = useCameraStore();
+
+// Saber si hay cámara configurada para mostrar (o no) el botón.
+onMounted(() => { camera.refreshConfigured() });
+
+function onToggleCamera() {
+  camera.toggle();
+}
 
 const openModal = () => {
   isOpen.value = true;
@@ -31,37 +34,6 @@ const logout = async () => {
   await userSession.logoutUser()
   router.push('/auth/login')
 };
-
-// Estado del broker mode
-const isSwitchingMode = ref(false);
-const brokerMode = computed(() => configStore.config?.broker_mode || 'cloud');
-
-// Cambiar entre modo nube y local
-const toggleBrokerMode = async () => {
-  const newMode = brokerMode.value === 'cloud' ? 'local' : 'cloud';
-  const modeName = newMode === 'cloud' ? '☁️ Nube' : '🏠 Local';
-  
-  isSwitchingMode.value = true;
-  try {
-    notyf.info(`Cambiando a modo ${modeName}... Reconfigurando placa...`);
-    
-    await api.post('/config/broker-mode', { mode: newMode });
-    await configStore.loadConfig(); // Recargar configuración
-    
-    notyf.success(`✅ Modo cambiado a: ${modeName}\n⏳ La placa se está reconfigurando automáticamente...`);
-    
-    // Mensaje adicional sobre el backend
-    setTimeout(() => {
-      notyf.info('💡 El backend se reconectará automáticamente al nuevo broker');
-    }, 1500);
-  } catch (error) {
-    console.error('Error cambiando modo broker:', error);
-    notyf.error('❌ Error al cambiar modo de conexión');
-  } finally {
-    isSwitchingMode.value = false;
-  }
-};
-
 
 const localFlagSrc = computed(() => {
   switch (locale.value) {
@@ -86,21 +58,17 @@ const localFlagSrc = computed(() => {
 
 <template>
   <div class="toolbar">
-    <!-- <div class="toolbar-icon " @click="openModal">
-      <i class="iconify " data-icon="feather:settings" aria-hidden="true" style="height: 20px; width: 20px;"> </i>
-    </div> -->
-
-    <!-- Botón de cambio de modo broker -->
-    <div class="toolbar-icon broker-toggle" 
-         @click="toggleBrokerMode" 
-         :class="{ 'is-loading': isSwitchingMode }"
-         :title="`Modo actual: ${brokerMode === 'cloud' ? 'Nube' : 'Local'}`">
-      <i v-if="!isSwitchingMode" 
-         :class="brokerMode === 'cloud' ? 'fas fa-cloud' : 'fas fa-home'" 
-         style="font-size: 18px;" 
-         :style="{ color: brokerMode === 'cloud' ? '#00D1B2' : '#FF7043' }">
-      </i>
-      <i v-else class="fas fa-spinner fa-spin" style="font-size: 18px; color: var(--primary);"></i>
+    <!-- Toggle de cámara: solo si hay una configurada. Corta/reconecta el stream. -->
+    <div v-if="camera.configured" class="toolbar-icon camera-toggle"
+         :class="{ 'is-active': camera.active }"
+         role="button" tabindex="0"
+         @click="onToggleCamera"
+         @keydown.enter.prevent="onToggleCamera"
+         :title="camera.active ? 'Detener cámara' : 'Ver cámara en vivo'">
+      <i aria-hidden="true" class="iconify"
+         data-icon="feather:video"
+         style="font-size: 18px;"
+         :style="{ color: camera.active ? 'var(--success)' : 'var(--light-text)' }" />
     </div>
 
     <div class="toolbar-link">
@@ -136,14 +104,5 @@ const localFlagSrc = computed(() => {
   border-color: rgb(34, 34, 37);
   box-shadow: rgb(34, 34, 37);
   color: var(--primary);
-}
-
-.broker-toggle {
-  position: relative;
-}
-
-.broker-toggle.is-loading {
-  cursor: not-allowed;
-  opacity: 0.7;
 }
 </style>

@@ -1,0 +1,65 @@
+# Configuración de MediaMTX para el gateway de cámara del sistema.
+#
+# El backend del generador crea/elimina dinámicamente el path de la cámara vía
+# la API de control (puerto 9997), tomando la URL RTSP desde Mongo. Por eso aquí
+# NO se definen paths fijos: se gestionan en runtime.
+#
+# Flujo: cámara RTSP --(pull)--> MediaMTX --(WebRTC/WHEP)--> navegador
+#
+# WebRTC da latencia sub-segundo y sin polling de manifiesto (a diferencia de
+# HLS). El frontend se conecta vía WHEP a http://<host>:8889/<path>/whep
+
+###############################################
+# API de control (la usa el backend Go)
+api: yes
+apiAddress: :9997
+
+###############################################
+# Autenticación interna.
+# MediaMTX v1.19+ exige auth por defecto en TODO (incluida la API). Como este
+# gateway vive en la red interna de Docker y los puertos sensibles (9997 API)
+# no se exponen al exterior en producción, se permite acceso anónimo a la API,
+# publicación y lectura. Si en el futuro se expone, restringir aquí por IP/usuario.
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: api
+      - action: publish
+      - action: read
+      - action: playback
+
+###############################################
+# Logs
+logLevel: info
+
+###############################################
+# RTSP de entrada (MediaMTX hace de cliente hacia la cámara; no necesita
+# escuchar como servidor RTSP, pero se deja el puerto por compatibilidad)
+rtsp: yes
+rtspAddress: :8554
+
+###############################################
+# WebRTC de salida (lo consume el frontend vía WHEP) - baja latencia
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+# UDP local fijo para los candidatos ICE (debe coincidir con el puerto expuesto
+# en docker-compose). Sin esto, WebRTC asigna puertos UDP aleatorios que el
+# navegador no puede alcanzar a través de Docker.
+webrtcLocalUDPAddress: :8189
+# Hosts/IPs por los que el navegador puede alcanzar este servidor. Para acceso
+# local sirve localhost; EN PRODUCCIÓN hay que añadir la IP real del servidor
+# (ver docker-compose / variable de entorno).
+webrtcAdditionalHosts: [localhost]
+
+###############################################
+# Deshabilitar protocolos que no usamos.
+hls: no
+rtmp: no
+srt: no
+
+###############################################
+# Sin paths predefinidos: el backend los gestiona vía la API.
+paths: {}

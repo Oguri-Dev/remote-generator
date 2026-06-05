@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"generador/auth"
 	"generador/broker"
 	"generador/config"
 )
@@ -239,17 +240,16 @@ func stopSequence() {
 // Body: { "relay_id":"1"|"2"|...|"8"|"all", "status":"ON"|"OFF"|"restart", "username":"..." }
 func HandleMqttAction(w http.ResponseWriter, r *http.Request) {
 	var cmd struct {
-		RelayID  string `json:"relay_id"`
-		Status   string `json:"status"`
-		Username string `json:"username"`
+		RelayID string `json:"relay_id"`
+		Status  string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 		http.Error(w, "❌ Error al leer la petición", http.StatusBadRequest)
 		return
 	}
 
-	// Usar "system" si no viene username
-	username := cmd.Username
+	// El usuario se toma de la sesión VERIFICADA, no del body (que es falsificable).
+	username := auth.UserFromContext(r.Context())
 	if username == "" {
 		username = "system"
 	}

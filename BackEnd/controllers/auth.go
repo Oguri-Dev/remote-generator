@@ -111,41 +111,24 @@ func (a *ConfigAPI) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Login: cookie de sesión (sin Expires/MaxAge)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "username",
-		Value:    user.Username,
-		Path:     "/", // *** importante ***
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, // *** coincide con lo que ves en DevTools ***
-		// Secure: true,                 // solo si sirves por HTTPS
-	})
+	// Login: cookie de sesión FIRMADA con HMAC (no falsificable por el cliente).
+	a.Sessions.SetCookie(w, user.Username, time.Now())
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("login ok"))
-
 }
 
 func (a *ConfigAPI) Logout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "username",
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, // 👈 Igual que en el login
-		Expires:  time.Unix(0, 0),
-		MaxAge:   -1,
-	})
-
+	a.Sessions.ClearCookie(w)
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *ConfigAPI) Me(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie("username")
-	if err != nil || c.Value == "" {
+	username, err := a.Sessions.UserFromRequest(r, time.Now())
+	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"username": c.Value})
+	_ = json.NewEncoder(w).Encode(map[string]string{"username": username})
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed, watch } from 'vue'
-import axios from 'axios'
+import { api } from '/@src/services/apiUser'
 import { useNotyf } from '/@src/composable/useNotyf'
 import { useViewWrapper } from '/@src/stores/viewWrapper'
 import { useRouter } from 'vue-router'
@@ -10,8 +10,6 @@ const router = useRouter()
 const notyf = useNotyf()
 const viewWrapper = useViewWrapper()
 viewWrapper.setPageTitle('Configuración')
-
-const api = axios.create({ baseURL: '/api', withCredentials: true })
 
 const loading = ref(false)
 const saving = ref(false)
@@ -43,13 +41,6 @@ const form = reactive({
   usermqtt: '',
   passmqtt: '',
   topic: '',
-  broker_mode: 'cloud' as 'cloud' | 'local',
-  cloud_broker: '',
-  cloud_user: '',
-  cloud_pass: '',
-  local_broker: '',
-  local_user: '',
-  local_pass: '',
   start_sequence_delay_sec: 5 as number | string,
   stop_sequence_delay_sec: 5 as number | string,
   emergency_input_id: '',
@@ -57,9 +48,21 @@ const form = reactive({
   relay_manual: '8',
   manual_mode_detection: 'auto' as 'input' | 'auto',
   relays: [] as RelayConfig[],
+  // Cámara IP (opcional)
+  camara_enabled: false,
+  camara_rtsp: '',
+  camara_user: '',
+  camara_pass: '',
 })
 
 let baseSnapshot: any = {}
+
+// Marca si hay una contraseña guardada en el backend para cada campo secreto
+// (se usa para mostrar el placeholder "sin cambios" en los inputs).
+const hasSavedSecret = reactive<Record<string, boolean>>({
+  passmqtt: false,
+  camara_pass: false,
+})
 
 // Configuración por defecto de los 8 relays
 const defaultRelays: RelayConfig[] = [
@@ -106,6 +109,18 @@ async function load() {
     }
 
     Object.assign(form, data)
+
+    // El backend nunca envía contraseñas en claro: manda un centinela
+    // (__SECRET_SET__) si hay una guardada. Lo convertimos en campo vacío para
+    // que el input muestre el placeholder "sin cambios". Si el usuario lo deja
+    // vacío al guardar, el backend conserva la contraseña existente.
+    const SECRET_SENTINEL = '__SECRET_SET__'
+    const secretFields = ['passmqtt', 'camara_pass'] as const
+    for (const f of secretFields) {
+      hasSavedSecret[f] = data[f] === SECRET_SENTINEL
+      if (data[f] === SECRET_SENTINEL) form[f] = ''
+    }
+
     // Defaults para delays de secuencia si vienen vacíos
     if (!form.start_sequence_delay_sec && form.start_sequence_delay_sec !== 0) {
       form.start_sequence_delay_sec = 5
@@ -113,8 +128,10 @@ async function load() {
     if (!form.stop_sequence_delay_sec && form.stop_sequence_delay_sec !== 0) {
       form.stop_sequence_delay_sec = 5
     }
+    // El snapshot se basa en `form` (ya con los centinelas convertidos a vacío)
+    // para que isDirty no se dispare por la diferencia centinela/vacío.
     const normalizedSnapshot = {
-      ...data,
+      ...form,
       start_sequence_delay_sec: form.start_sequence_delay_sec,
       stop_sequence_delay_sec: form.stop_sequence_delay_sec,
     }
@@ -139,13 +156,6 @@ function normalizarPayload() {
     usermqtt: String(form.usermqtt || '').trim(),
     passmqtt: String(form.passmqtt || ''),
     topic: String(form.topic || '').trim(),
-    broker_mode: String(form.broker_mode || 'cloud').trim(),
-    cloud_broker: String(form.cloud_broker || '').trim(),
-    cloud_user: String(form.cloud_user || '').trim(),
-    cloud_pass: String(form.cloud_pass || ''),
-    local_broker: String(form.local_broker || '').trim(),
-    local_user: String(form.local_user || '').trim(),
-    local_pass: String(form.local_pass || ''),
     start_sequence_delay_sec: Number(form.start_sequence_delay_sec) || 0,
     stop_sequence_delay_sec: Number(form.stop_sequence_delay_sec) || 0,
     emergency_input_id: String(form.emergency_input_id || '').trim(),
@@ -161,6 +171,10 @@ function normalizarPayload() {
       input_id: r.input_id || '',
       restart_delay_sec: Number(r.restart_delay_sec) || 0,
     })),
+    camara_enabled: !!form.camara_enabled,
+    camara_rtsp: String(form.camara_rtsp || '').trim(),
+    camara_user: String(form.camara_user || '').trim(),
+    camara_pass: String(form.camara_pass || ''),
   }
 }
 
@@ -239,95 +253,12 @@ onMounted(load)
               </VControl>
             </VField>
 
-            <!-- Configuración legacy (compatibilidad) -->
-            <VField label="IP del broker MQTT (Legacy - usar configuración dual abajo)">
+            <VField label="IP del broker MQTT local">
               <VControl icon="feather:server">
-                <VInput v-model="form.ipbroker" placeholder="192.168.0.20" />
+                <VInput v-model="form.ipbroker" placeholder="192.168.0.20:1883" />
               </VControl>
+              <p class="help">Broker MQTT en la red local (ej: 192.168.0.20:1883)</p>
             </VField>
-
-            <!-- Configuración Dual de Brokers -->
-            <hr class="my-4" />
-            <h3 class="title is-5 mb-3">
-              <span class="icon-text">
-                <span class="icon"><i class="fas fa-exchange-alt"></i></span>
-                <span>Configuración Dual de Brokers (Nube/Local)</span>
-              </span>
-            </h3>
-
-            <div class="notification is-info is-light mb-4">
-              <p class="mb-2"><strong>💡 Modo de contingencia:</strong></p>
-              <ul style="margin-left: 1rem;">
-                <li>Configure ambos brokers (nube y local)</li>
-                <li>Use el botón en el header (☁️/🏠) para cambiar entre modos</li>
-                <li>La placa se reconfigurará automáticamente al cambiar</li>
-                <li>Útil cuando falla la conexión a internet</li>
-              </ul>
-            </div>
-
-            <div class="box has-background-light mb-4">
-              <h4 class="subtitle is-6 mb-3">
-                <span class="icon-text">
-                  <span class="icon has-text-success"><i class="fas fa-cloud"></i></span>
-                  <span>Broker Nube</span>
-                </span>
-              </h4>
-              <VField label="URL Broker Nube">
-                <VControl icon="feather:cloud">
-                  <VInput v-model="form.cloud_broker" placeholder="wss://broker.ejemplo.com:8084/mqtt" />
-                </VControl>
-                <p class="help">Ejemplo: wss://broker.ejemplo.com:8084/mqtt o tcp://broker.ejemplo.com:1883</p>
-              </VField>
-              <div class="columns">
-                <div class="column">
-                  <VField label="Usuario Nube">
-                    <VControl icon="feather:user">
-                      <VInput v-model="form.cloud_user" placeholder="usuario_nube" />
-                    </VControl>
-                  </VField>
-                </div>
-                <div class="column">
-                  <VField label="Contraseña Nube">
-                    <VControl icon="feather:lock">
-                      <VInput v-model="form.cloud_pass" type="password" placeholder="••••••" />
-                    </VControl>
-                  </VField>
-                </div>
-              </div>
-            </div>
-
-            <div class="box has-background-light mb-4">
-              <h4 class="subtitle is-6 mb-3">
-                <span class="icon-text">
-                  <span class="icon has-text-warning"><i class="fas fa-home"></i></span>
-                  <span>Broker Local (Contingencia)</span>
-                </span>
-              </h4>
-              <VField label="URL Broker Local">
-                <VControl icon="feather:server">
-                  <VInput v-model="form.local_broker" placeholder="mqtt-broker:1883 o tcp://192.168.1.100:1883" />
-                </VControl>
-                <p class="help">Ejemplo: mqtt-broker:1883 (dentro de Docker) o tcp://192.168.1.100:1883</p>
-              </VField>
-              <div class="columns">
-                <div class="column">
-                  <VField label="Usuario Local">
-                    <VControl icon="feather:user">
-                      <VInput v-model="form.local_user" placeholder="usuario_local" />
-                    </VControl>
-                  </VField>
-                </div>
-                <div class="column">
-                  <VField label="Contraseña Local">
-                    <VControl icon="feather:lock">
-                      <VInput v-model="form.local_pass" type="password" placeholder="••••••" />
-                    </VControl>
-                  </VField>
-                </div>
-              </div>
-            </div>
-
-            <hr class="my-4" />
 
             <div class="columns">
               <div class="column">
@@ -340,7 +271,7 @@ onMounted(load)
               <div class="column">
                 <VField label="Contraseña MQTT">
                   <VControl icon="feather:lock">
-                    <VInput v-model="form.passmqtt" type="password" placeholder="••••••" />
+                    <VInput v-model="form.passmqtt" type="password" :placeholder="hasSavedSecret.passmqtt ? '•••••• (sin cambios)' : 'Sin configurar'" />
                   </VControl>
                 </VField>
               </div>
@@ -506,6 +437,49 @@ onMounted(load)
                 </VField>
               </div>
             </div>
+
+            <!-- Cámara IP (opcional) -->
+            <hr class="my-4" />
+            <h3 class="title is-5 mb-3">
+              <span class="icon-text">
+                <span class="icon"><i class="iconify" data-icon="feather:video"></i></span>
+                <span>Cámara IP (opcional)</span>
+              </span>
+            </h3>
+
+            <VField>
+              <VControl>
+                <VCheckbox v-model="form.camara_enabled" label="Habilitar cámara en vivo" />
+              </VControl>
+              <p class="help">
+                Si se habilita, podrás ver el video en el panel principal con el botón de cámara de la barra superior.
+              </p>
+            </VField>
+
+            <template v-if="form.camara_enabled">
+              <VField label="URL RTSP de la cámara">
+                <VControl icon="feather:video">
+                  <VInput v-model="form.camara_rtsp" placeholder="rtsp://192.168.1.50:554/Streaming/Channels/101" />
+                </VControl>
+                <p class="help">URL RTSP (Hikvision: rtsp://IP:554/Streaming/Channels/101 para el canal principal).</p>
+              </VField>
+              <div class="columns">
+                <div class="column">
+                  <VField label="Usuario de la cámara">
+                    <VControl icon="feather:user">
+                      <VInput v-model="form.camara_user" placeholder="admin" />
+                    </VControl>
+                  </VField>
+                </div>
+                <div class="column">
+                  <VField label="Contraseña de la cámara">
+                    <VControl icon="feather:lock">
+                      <VInput v-model="form.camara_pass" type="password" :placeholder="hasSavedSecret.camara_pass ? '•••••• (sin cambios)' : 'Sin configurar'" />
+                    </VControl>
+                  </VField>
+                </div>
+              </div>
+            </template>
 
             <!-- Botones de acción -->
             <div class="is-flex is-justify-content-end mt-5">

@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { usePlacaStore } from './PlacaStore'
+import { api } from '/@src/services/apiUser'
+import { debug, debugWarn } from '/@src/utils/logger'
 
 export const useMqttStore = defineStore('mqttStore', {
   state: () => ({
@@ -33,7 +35,7 @@ export const useMqttStore = defineStore('mqttStore', {
 
       this.websocket.onopen = () => {
         this.isConnected = true
-        console.log('✅ WebSocket conectado')
+        debug('✅ WebSocket conectado')
 
         // Iniciar monitoreo de heartbeat de la placa
         const placaStore = usePlacaStore()
@@ -69,7 +71,7 @@ export const useMqttStore = defineStore('mqttStore', {
       }
 
       this.websocket.onclose = () => {
-        console.warn('⚠️ WebSocket desconectado. Reintentando...')
+        debugWarn('⚠️ WebSocket desconectado. Reintentando...')
         this.isConnected = false
 
         // Detener monitoreo de heartbeat cuando se cierra la conexión
@@ -87,16 +89,13 @@ export const useMqttStore = defineStore('mqttStore', {
 
     async fetchSequenceState() {
       try {
-        const response = await fetch('/mqtt/sequence_state')
-        const data = await response.json()
+        const { data } = await api.get('/mqtt/sequence_state')
 
         if (data.sequenceState && typeof data.sequenceState === 'object') {
           this.sequenceState = data.sequenceState
-        } else {
-          console.warn('⚠️ Respuesta inesperada del backend:', data)
         }
       } catch (error) {
-        console.error('❌ Error obteniendo estado de secuencia:', error)
+        console.error('Error obteniendo estado de secuencia:', error)
       }
     },
   },

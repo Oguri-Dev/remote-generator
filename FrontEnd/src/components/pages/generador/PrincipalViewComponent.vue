@@ -1,8 +1,13 @@
 <template>
   <div class="personal-dashboard personal-dashboard-v3">
     <div class="columns is-variable is-1-mobile is-2-tablet">
-      <!-- Columna Izquierda: Estados de Relés -->
+      <!-- Columna Izquierda: Cámara (opcional) + Estados de Relés -->
       <div class="column is-12-mobile is-12-tablet is-5-desktop">
+        <!-- Recuadro de cámara en vivo (arriba) -->
+        <div v-if="showCamera" class="mb-2">
+          <CameraStream />
+        </div>
+
         <div class="columns is-multiline is-flex-tablet-p is-variable is-1-mobile is-2-tablet">
           <!-- Banner de Modo Manual Activo -->
           <div v-if="isManualMode" class="column is-12">
@@ -25,8 +30,9 @@
             </div>
           </div>
 
-          <!-- Tarjetas de Estado (Dinámicas) -->
-          <div v-for="relay in enabledRelays" :key="relay.id" class="column is-12">
+          <!-- Tarjetas de Estado (Dinámicas). Con cámara activa: 2 columnas compactas. -->
+          <div v-for="relay in enabledRelays" :key="relay.id"
+               :class="showCamera ? 'column is-6 is-compact-status' : 'column is-12'">
             <div class="dashboard-card is-welcome">
               <div class="welcome-title">
                 <h3 class="dark-inverted">Estado Actual {{ relay.name }}</h3>
@@ -236,16 +242,24 @@ import { useMqttStore } from "/@src/stores/MqttStore";
 import { usePlacaStore } from "/@src/stores/PlacaStore";
 import { useConfigStore } from "/@src/stores/ConfigStore";
 import { sendActionToBackend } from "/@src/services/mqttService";
+import { debug } from "/@src/utils/logger";
+import { useCameraStore } from "/@src/stores/CameraStore";
+import CameraStream from "/@src/components/pages/generador/CameraStream.vue";
 import ProgressSpinner from 'primevue/progressspinner';
 
 const mqttStore = useMqttStore();
 const placaStore = usePlacaStore();
 const configStore = useConfigStore();
+const camera = useCameraStore();
+
+// La cámara se muestra (recuadro azul) solo si está configurada y el toggle activo.
+const showCamera = computed(() => camera.configured && camera.active);
 
 // Cargar configuración y conectar WebSocket al montar
 onMounted(async () => {
   await configStore.loadConfig();
   mqttStore.connectToWebSocket();
+  camera.refreshConfigured();
 });
 
 // ===== Relés por tipo (desde ConfigStore) =====
@@ -433,73 +447,73 @@ const confirmToggleRelay = async () => {
   pendingRelayId.value = null;
   pendingAction.value = '';
 
-  console.log(`🔄 Iniciando secuencia de ${action === 'ON' ? 'ENCENDIDO' : 'APAGADO'}`);
+  debug(`🔄 Iniciando secuencia de ${action === 'ON' ? 'ENCENDIDO' : 'APAGADO'}`);
   startStopInProgress.value = true;
 
   if (action === 'ON') {
     // Secuencia de encendido: Generadores → Racks → Módulos
-    console.log(`⚡ Paso 1: Encendiendo ${relayName}`);
+    debug(`⚡ Paso 1: Encendiendo ${relayName}`);
     await sendActionToBackend(relayId, 'ON');
 
     if (rackRelays.value.length > 0) {
-      console.log(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
+      debug(`⚡ Paso 2: Encendiendo Racks (${rackRelays.value.length})`);
       for (const relay of rackRelays.value) {
         // Esperar el delay asignado a este rack antes de encenderlo
         const rackDelay = (relay.restart_delay_sec ?? startDelay / 1000) * 1000;
-        console.log(`⏳ Esperando ${rackDelay / 1000} segundos antes de encender ${relay.name}...`);
+        debug(`⏳ Esperando ${rackDelay / 1000} segundos antes de encender ${relay.name}...`);
         await waitMs(rackDelay);
-        console.log(`⚡ Encendiendo ${relay.name}`);
+        debug(`⚡ Encendiendo ${relay.name}`);
         await sendActionToBackend(relay.id, 'ON');
       }
     }
 
     if (moduleRelays.value.length > 0) {
-      console.log(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
+      debug(`⚡ Paso 3: Encendiendo Módulos (${moduleRelays.value.length})`);
       for (const relay of moduleRelays.value) {
         // Esperar el delay asignado a este módulo antes de encenderlo
         const moduleDelay = (relay.restart_delay_sec ?? startDelay / 1000) * 1000;
-        console.log(`⏳ Esperando ${moduleDelay / 1000} segundos antes de encender ${relay.name}...`);
+        debug(`⏳ Esperando ${moduleDelay / 1000} segundos antes de encender ${relay.name}...`);
         await waitMs(moduleDelay);
-        console.log(`⚡ Encendiendo ${relay.name}`);
+        debug(`⚡ Encendiendo ${relay.name}`);
         await sendActionToBackend(relay.id, 'ON');
       }
     }
 
-    console.log(`✅ Secuencia de ENCENDIDO completada`);
+    debug(`✅ Secuencia de ENCENDIDO completada`);
   } else {
     // Secuencia de apagado: Módulos → Racks → Generadores
     if (moduleRelays.value.length > 0) {
-      console.log(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
+      debug(`🛑 Paso 1: Apagando Módulos (${moduleRelays.value.length})`);
       for (let i = moduleRelays.value.length - 1; i >= 0; i--) {
         const relay = moduleRelays.value[i];
-        console.log(`🛑 Apagando ${relay.name}`);
+        debug(`🛑 Apagando ${relay.name}`);
         await sendActionToBackend(relay.id, 'OFF');
 
         // Esperar el delay asignado a ESTE módulo antes de apagar el siguiente
         const relayDelay = (relay.restart_delay_sec ?? stopDelay / 1000) * 1000;
-        console.log(`⏳ Esperando ${relayDelay / 1000} segundos...`);
+        debug(`⏳ Esperando ${relayDelay / 1000} segundos...`);
         await waitMs(relayDelay);
       }
     }
 
     if (rackRelays.value.length > 0) {
-      console.log(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
+      debug(`🛑 Paso 2: Apagando Racks (${rackRelays.value.length})`);
       for (let i = rackRelays.value.length - 1; i >= 0; i--) {
         const relay = rackRelays.value[i];
-        console.log(`🛑 Apagando ${relay.name}`);
+        debug(`🛑 Apagando ${relay.name}`);
         await sendActionToBackend(relay.id, 'OFF');
 
         // Esperar el delay asignado a ESTE rack antes de apagar el siguiente
         const relayDelay = (relay.restart_delay_sec ?? stopDelay / 1000) * 1000;
-        console.log(`⏳ Esperando ${relayDelay / 1000} segundos...`);
+        debug(`⏳ Esperando ${relayDelay / 1000} segundos...`);
         await waitMs(relayDelay);
       }
     }
 
-    console.log(`🛑 Paso 3: Apagando ${relayName}`);
+    debug(`🛑 Paso 3: Apagando ${relayName}`);
     await sendActionToBackend(relayId, 'OFF');
 
-    console.log(`✅ Secuencia de APAGADO completada`);
+    debug(`✅ Secuencia de APAGADO completada`);
   }
 
   startStopInProgress.value = false;
@@ -509,10 +523,10 @@ const restartComponent = async (component: string) => {
   if (areButtonsDisabled.value) return;
 
   if (component === 'all') {
-    console.log(`🔄 Reiniciando TODO el equipamiento`);
+    debug(`🔄 Reiniciando TODO el equipamiento`);
   } else {
     const componentName = getRelayName(component);
-    console.log(`🔄 Reiniciando ${componentName}`);
+    debug(`🔄 Reiniciando ${componentName}`);
   }
 
   await sendActionToBackend(component, "restart");
@@ -575,6 +589,21 @@ watch(() => placaStore.inputs, (inputs) => {
 
 <style lang="scss">
 @import '/@src/scss/abstracts/all';
+
+// Tarjetas de estado compactas: cuando la cámara está activa, las tarjetas se
+// muestran en 2 columnas y con tipografía reducida para dejar espacio al video.
+.is-compact-status {
+  .dashboard-card {
+    padding: 0.75rem 1rem;
+  }
+  .welcome-title h3 {
+    font-size: 0.85rem;
+    margin-bottom: 0.15rem;
+  }
+  .welcome-title h2 {
+    font-size: 1rem;
+  }
+}
 
 .button-wrap {
   .button {

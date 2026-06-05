@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"generador/crypto"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -27,6 +29,7 @@ type RelayConfig struct {
 type Config struct {
 	Ipplaca  string `bson:"ipplaca"  json:"ipplaca"`
 	Idplaca  int    `bson:"idplaca"  json:"idplaca"`
+	// Broker MQTT local (única conexión; el sistema no sale a internet).
 	Ipbroker string `bson:"ipbroker" json:"ipbroker"`
 	Usermqtt string `bson:"usermqtt" json:"usermqtt"`
 	Passmqtt string `bson:"passmqtt" json:"passmqtt"`
@@ -36,6 +39,14 @@ type Config struct {
 	StopSequenceDelaySec  int `bson:"stop_sequence_delay_sec"  json:"stop_sequence_delay_sec"`
 	EmergencyInputID      string `bson:"emergency_input_id" json:"emergency_input_id"`
 	EmergencyInputState   string `bson:"emergency_input_state" json:"emergency_input_state"` // "LOW" o "HIGH"
+
+	// Cámara IP opcional (Hikvision/RTSP). El backend reenvía el RTSP a MediaMTX,
+	// que lo republica como HLS para el navegador. CamaraPass es un secreto
+	// recuperable: se cifra en reposo igual que la contraseña del broker.
+	CamaraEnabled bool   `bson:"camara_enabled" json:"camara_enabled"` // si la cámara está habilitada
+	CamaraRTSP    string `bson:"camara_rtsp"    json:"camara_rtsp"`    // URL RTSP, p.ej. rtsp://IP:554/Streaming/Channels/101
+	CamaraUser    string `bson:"camara_user"    json:"camara_user"`    // usuario de la cámara
+	CamaraPass    string `bson:"camara_pass"    json:"camara_pass"`    // contraseña (cifrada en reposo)
 
 	// Configuración dinámica de los 8 relays
 	Relays []RelayConfig `bson:"relays" json:"relays"`
@@ -109,6 +120,25 @@ var (
 
 func Get() Config { mu.RLock(); defer mu.RUnlock(); return cfg }
 
+// SecretSentinel marca, en las respuestas de la API, que existe una contraseña
+// guardada sin revelar su valor. El front lo trata como "hay secreto, no lo
+// muestro"; si se reenvía tal cual en un PUT, el backend conserva el valor real.
+const SecretSentinel = "__SECRET_SET__"
+
+// Redacted devuelve una copia de la config en la que las contraseñas no vacías
+// se sustituyen por el centinela. Se usa para NO exponer secretos por la API.
+func (c Config) Redacted() Config {
+	redact := func(v string) string {
+		if v == "" {
+			return ""
+		}
+		return SecretSentinel
+	}
+	c.Passmqtt = redact(c.Passmqtt)
+	c.CamaraPass = redact(c.CamaraPass)
+	return c
+}
+
 // GetRelaysByType retorna todos los relays de un tipo específico
 func GetRelaysByType(relayType string) []RelayConfig {
 	mu.RLock()
@@ -171,9 +201,10 @@ type Store struct {
 	client   *mongo.Client
 	dbName   string
 	collName string
+	cipher   *crypto.Cipher
 }
 
-func NewStore(ctx context.Context, uri, db, coll string) (*Store, error) {
+func NewStore(ctx context.Context, uri, db, coll string, cipher *crypto.Cipher) (*Store, error) {
 	cli, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err
@@ -181,7 +212,38 @@ func NewStore(ctx context.Context, uri, db, coll string) (*Store, error) {
 	if err := cli.Ping(ctx, nil); err != nil {
 		return nil, err
 	}
-	return &Store{client: cli, dbName: db, collName: coll}, nil
+	return &Store{client: cli, dbName: db, collName: coll, cipher: cipher}, nil
+}
+
+// secretFields enumera los campos sensibles que se cifran en reposo.
+// Devuelve punteros para poder leerlos y reescribirlos in situ.
+func secretFields(c *Config) []*string {
+	return []*string{&c.Passmqtt, &c.CamaraPass}
+}
+
+// encryptSecrets cifra los campos sensibles de la config (idempotente).
+func (s *Store) encryptSecrets(c *Config) error {
+	for _, f := range secretFields(c) {
+		enc, err := s.cipher.Encrypt(*f)
+		if err != nil {
+			return err
+		}
+		*f = enc
+	}
+	return nil
+}
+
+// decryptSecrets descifra los campos sensibles de la config. Los valores en
+// claro heredados (sin prefijo) se devuelven sin cambios.
+func (s *Store) decryptSecrets(c *Config) error {
+	for _, f := range secretFields(c) {
+		dec, err := s.cipher.Decrypt(*f)
+		if err != nil {
+			return err
+		}
+		*f = dec
+	}
+	return nil
 }
 
 func (s *Store) Load(ctx context.Context) (Config, error) {
@@ -221,6 +283,11 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	// Descifrar secretos antes de exponerlos en el cache en memoria: el broker
+	// y los consumidores trabajan siempre con la versión en claro.
+	if err := s.decryptSecrets(&c); err != nil {
+		return Config{}, fmt.Errorf("descifrando configuración: %w", err)
+	}
 	set(c)
 	return c, nil
 }
@@ -247,9 +314,24 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 	if in.EmergencyInputState != "LOW" && in.EmergencyInputState != "HIGH" {
 		in.EmergencyInputState = "LOW"
 	}
-	// Normalizar emergency input (vacío si no configurado)
-	if in.EmergencyInputID == "" {
-		in.EmergencyInputID = ""
+
+	// "Conservar al editar": si la contraseña llega vacía o como centinela desde
+	// la API, se mantiene la que ya estaba guardada (el front nunca recibe el
+	// secreto en claro: muestra el centinela y lo reenvía si no lo cambia).
+	cur := Get()
+	if in.Passmqtt == "" || in.Passmqtt == SecretSentinel {
+		in.Passmqtt = cur.Passmqtt
+	}
+	if in.CamaraPass == "" || in.CamaraPass == SecretSentinel {
+		in.CamaraPass = cur.CamaraPass
+	}
+
+	// Conservar la versión en claro para el cache en memoria; el broker la usa.
+	plain := in
+
+	// Cifrar los secretos antes de persistirlos en Mongo.
+	if err := s.encryptSecrets(&in); err != nil {
+		return Config{}, fmt.Errorf("cifrando configuración: %w", err)
 	}
 
 	relaysDoc := make([]bson.M, 0, len(in.Relays))
@@ -280,9 +362,13 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		"manual_mode_detection":  in.ManualModeDetection,
 		"emergency_input_id":     in.EmergencyInputID,
 		"emergency_input_state":  in.EmergencyInputState,
+		"camara_enabled":         in.CamaraEnabled,
+		"camara_rtsp":            in.CamaraRTSP,
+		"camara_user":            in.CamaraUser,
+		"camara_pass":            in.CamaraPass,
 	}
 
-	// 2) Llaves legacy a eliminar
+	// 2) Llaves legacy a eliminar (incluye el antiguo dual-broker, ya retirado)
 	legacyUnset := bson.M{
 		"IpPlaca":              1,
 		"IdPlaca":              1,
@@ -294,6 +380,13 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		"relay_rack_monitoreo": 1,
 		"relay_modulo1":        1,
 		"relay_modulo2":        1,
+		"broker_mode":          1,
+		"cloud_broker":         1,
+		"cloud_user":           1,
+		"cloud_pass":           1,
+		"local_broker":         1,
+		"local_user":           1,
+		"local_pass":           1,
 	}
 
 	// 3) Upsert de la única config + limpieza de legacy
@@ -311,8 +404,9 @@ func (s *Store) Save(ctx context.Context, in Config) (Config, error) {
 		return Config{}, err
 	}
 
-	// 4) Actualiza cache en memoria y devuelve
-	_, out := set(in)
+	// 4) Actualiza cache en memoria con la versión EN CLARO (el broker la usa)
+	//    y devuelve esa versión.
+	_, out := set(plain)
 	return out, nil
 }
 

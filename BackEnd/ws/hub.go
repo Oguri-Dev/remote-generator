@@ -3,9 +3,12 @@ package ws
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
+
+	"generador/auth"
 
 	"github.com/gorilla/websocket"
 )
@@ -29,49 +32,33 @@ type Hub struct {
 	upgrader websocket.Upgrader
 	clients  map[*client]struct{}
 	mu       sync.RWMutex
+	sessions *auth.Manager
 
 	OnClientMessage func([]byte) // <- NUEVO
 }
 
-func NewHub(allowedOrigin string) *Hub {
+func NewHub(allowedOrigin string, sessions *auth.Manager) *Hub {
 	return &Hub{
+		sessions: sessions,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				origin := r.Header.Get("Origin")
-				
-				// Log para debugging
-				log.Printf("🔗 WebSocket Origin: %s (esperado: %s)", origin, allowedOrigin)
-				
-				// Permitir orígenes comunes
-				allowedOrigins := []string{
-					"http://localhost",
-					"http://localhost:80",
-					"http://localhost:3000",
-					"http://localhost:3069",
-					"http://localhost:8080",
-					"http://127.0.0.1",
-					"http://127.0.0.1:80",
-					"http://127.0.0.1:3000",
-					"http://127.0.0.1:3069",
-					allowedOrigin,
+
+				// El origen configurado (FRONTEND_ORIGIN) siempre se permite.
+				if allowedOrigin != "" && origin == allowedOrigin {
+					return true
 				}
-				
-				// Verificar si el origen está en la lista
-				for _, allowed := range allowedOrigins {
-					if origin == allowed {
-						log.Printf("✅ WebSocket origen permitido: %s", origin)
+
+				// En desarrollo se permiten los orígenes localhost habituales.
+				// En producción (ENVIRONMENT=production) se rechaza todo lo que no
+				// sea el origen configurado: fail-closed.
+				if isDevEnv() {
+					if isLocalhostOrigin(origin) {
 						return true
 					}
 				}
-				
-				// En desarrollo, permitir todos (si no tiene ENVIRONMENT o es 'development')
-				env := os.Getenv("ENVIRONMENT")
-				if env == "" || env == "development" {
-					log.Printf("⚠️ WebSocket origen permisivo (dev mode): %s", origin)
-					return true
-				}
-				
-				log.Printf("❌ WebSocket origen rechazado: %s", origin)
+
+				log.Printf("❌ WebSocket origen rechazado: %q (permitido: %q)", origin, allowedOrigin)
 				return false
 			},
 		},
@@ -79,7 +66,32 @@ func NewHub(allowedOrigin string) *Hub {
 	}
 }
 
+// isDevEnv reporta si el backend corre en modo desarrollo. En producción
+// (ENVIRONMENT=production) la validación de origen es estricta.
+func isDevEnv() bool {
+	env := os.Getenv("ENVIRONMENT")
+	return env == "" || env == "development"
+}
+
+// isLocalhostOrigin reporta si el origen apunta a localhost / 127.0.0.1
+// (cualquier puerto), usado solo en desarrollo.
+func isLocalhostOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1"
+}
+
 func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
+	// El canal WS reenvía mensajes del cliente hacia MQTT (control), así que
+	// exige sesión válida (la cookie firmada viaja en el handshake del navegador).
+	if _, err := h.sessions.UserFromRequest(r, time.Now()); err != nil {
+		http.Error(w, "no autorizado", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("upgrade ws: %v", err)
