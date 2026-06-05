@@ -67,8 +67,8 @@ func TestNormalizeRelaysEnabledMatchesType(t *testing.T) {
 
 func TestRedactedHidesSecrets(t *testing.T) {
 	c := Config{
-		Usermqtt: "andres",
-		Passmqtt: "colocolo",
+		Usermqtt: "test-user",
+		Passmqtt: "test-password",
 	}
 	r := c.Redacted()
 
@@ -76,11 +76,11 @@ func TestRedactedHidesSecrets(t *testing.T) {
 		t.Errorf("Passmqtt no redactada: %q", r.Passmqtt)
 	}
 	// Los campos no secretos se conservan.
-	if r.Usermqtt != "andres" {
+	if r.Usermqtt != "test-user" {
 		t.Errorf("el usuario no debe redactarse: %q", r.Usermqtt)
 	}
 	// El original NO debe mutarse (Redacted trabaja sobre copia por valor).
-	if c.Passmqtt != "colocolo" {
+	if c.Passmqtt != "test-password" {
 		t.Error("Redacted no debe mutar la config original")
 	}
 }

@@ -27,7 +27,7 @@ func TestNewRejectsWeakKey(t *testing.T) {
 
 func TestEncryptDecryptRoundtrip(t *testing.T) {
 	c := newTestCipher(t)
-	plain := "colocolo-secreto-mqtt"
+	plain := "test-secret-mqtt"
 
 	enc, err := c.Encrypt(plain)
 	if err != nil {
