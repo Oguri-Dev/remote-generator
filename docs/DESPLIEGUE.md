@@ -89,9 +89,15 @@ propia interfaz web** (la IP `10.x` de la placa en la red de monitoreo):
 - **Servidor / broker MQTT**: la IP del servidor en la red de monitoreo.
 - **Puerto**: `1883`.
 - **Usuario / contraseña**: dejar vacíos (el broker acepta conexiones anónimas).
+- **Relay Password**: debe quedar en `0` (el backend envía los comandos con
+  `pass: 0`; con otro valor la placa los ignora).
 
 Una vez apuntada, la placa empezará a publicar en su tópico y la app reflejará el
 estado de los relés.
+
+> Guía detallada de **todos los menús de la placa** (red, MQTT, entradas físicas,
+> Input Link Relay, funciones a deshabilitar y verificación):
+> [CONFIGURACION-PLACA.md](CONFIGURACION-PLACA.md).
 
 ## Ajuste remoto del segmento (cuando el técnico esté en terreno)
 
