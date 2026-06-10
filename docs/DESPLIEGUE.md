@@ -265,18 +265,37 @@ estado de los relés.
 > Input Link Relay, funciones a deshabilitar y verificación):
 > [CONFIGURACION-PLACA.md](CONFIGURACION-PLACA.md).
 
-## Ajuste remoto del segmento (cuando el técnico esté en terreno)
+## Cambiar la IP del servidor (ajuste en terreno o cambio futuro)
 
-Cuando sepas la IP definitiva del servidor en la red de monitoreo:
+Cuando se sepa la IP definitiva, o si algún día el centro reasigna la IP del
+servidor. Nada se reconstruye ni descarga — son ~2 minutos:
 
-1. Editar `.env`: `WEBRTC_HOST=<IP del servidor>`
-2. Reiniciar solo el gateway de cámara (NO requiere reconstruir nada):
+1. **Windows** (solo si cambia la red del equipo): fijar la IP nueva en el
+   adaptador (Panel de control → adaptador → IPv4, o `New-NetIPAddress` en
+   PowerShell como administrador).
+2. **`.env`**: actualizar las dos líneas con la IP nueva:
+
    ```powershell
-   docker compose up -d mediamtx
+   cd C:\remote-generator
+   notepad .env    # WEBRTC_HOST=<IP-nueva>  y  FRONTEND_ORIGIN=http://<IP-nueva>
    ```
 
-Eso es todo. El resto del sistema ya funciona con cualquier IP por las rutas
-relativas.
+3. **Aplicar** — compose recrea solo los contenedores afectados (~15 s):
+
+   ```powershell
+   docker compose up -d
+   ```
+
+4. **La placa Dingtian** (el paso que se olvida): la placa se conecta al broker
+   por la IP del servidor. En la web de la placa → Relay Connect → **ETH-MQTT →
+   Broker Address** → la IP nueva → Save (la placa se reinicia y reconecta).
+5. **Verificar**: la placa vuelve a entregar mensajes
+   (`docker exec generador-mqtt mosquitto_sub -t "/dingtian/#" -C 1 -W 30`) y
+   desde otra máquina `http://<IP-nueva>/` permite login con datos en vivo.
+   Avisar a los operadores la URL nueva.
+
+Las reglas de firewall no se tocan (son por puerto). La única regla con IP es la
+de MQTT restringida a la **placa** — solo cambia si la placa cambia de IP.
 
 ## Actualizar una instalación existente
 
