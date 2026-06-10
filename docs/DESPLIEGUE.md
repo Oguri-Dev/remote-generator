@@ -17,6 +17,14 @@ servidor por la que el navegador del operador recibe el vídeo de la cámara).
 ## Requisitos del PC de producción
 
 - Windows con **Docker Desktop** instalado y corriendo (ver instalación abajo).
+- **Git para Windows** instalado — se usa para clonar el proyecto y traer
+  actualizaciones. Descargar de `git-scm.com` e instalar con las opciones por
+  defecto (incluye el cliente SSH que usa la deploy key). Verificar:
+
+  ```powershell
+  git --version
+  ```
+
 - El PC conectado a la red de monitoreo (donde están placa `10.x` y cámara).
 - Una **IP fija** del servidor en esa red (configurarla en Windows, no DHCP).
 
