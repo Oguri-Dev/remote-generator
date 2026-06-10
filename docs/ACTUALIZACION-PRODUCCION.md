@@ -172,6 +172,79 @@ actualización debe hacerse en la misma carpeta** o con `docker compose -p <nomb
 para reutilizar los volúmenes. **[VERIFICAR]** la ruta exacta de la carpeta del proyecto en producción
 (en adelante: `C:\ruta\al\proyecto`).
 
+### 1.6 Verificar el estado de los puertos del sistema
+
+```powershell
+$puertosTcp = 80, 1883, 8099, 9001, 9997, 27017
+foreach ($p in $puertosTcp) {
+    $conn = Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue
+    if ($conn) {
+        $procs = ($conn | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName } | Sort-Object -Unique) -join ', '
+        Write-Host ("TCP {0,-6} OCUPADO por: {1}" -f $p, $procs) -ForegroundColor Yellow
+    } else {
+        Write-Host ("TCP {0,-6} libre" -f $p) -ForegroundColor Green
+    }
+}
+$udp = Get-NetUDPEndpoint -LocalPort 8189 -ErrorAction SilentlyContinue
+if ($udp) {
+    $procs = ($udp | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName } | Sort-Object -Unique) -join ', '
+    Write-Host ("UDP 8189   OCUPADO por: {0}" -f $procs) -ForegroundColor Yellow
+} else {
+    Write-Host "UDP 8189   libre" -ForegroundColor Green
+}
+```
+
+Interpretación — la clave es *quién* ocupa el puerto:
+
+- Ocupado por procesos de Docker (`com.docker.backend`, `wslrelay`, `vpnkit`, `docker-proxy`):
+  es el stack viejo; se libera en el paso 6.2. Lo esperado.
+- Ocupado por **cualquier otro proceso** (`mosquitto`, `mongod`, `System`/IIS, etc.): conflicto real
+  a resolver antes de desplegar — ver 1.7.
+- 9997/TCP y 8189/UDP deberían estar libres (MediaMTX es nuevo).
+- Que un puerto esté libre localmente no garantiza que sea alcanzable desde la red (eso lo decide el
+  firewall, paso 7); y el UDP 8189 no se puede probar con `Test-NetConnection` — su prueba real es la
+  cámara (paso 8.7).
+
+### 1.7 Servicios nativos de MongoDB/Mosquitto (restos de la instalación local sin Docker)
+
+El commit `88fb65e` (2026-01-30) introdujo una instalación local sin Docker (servicios de Windows vía
+NSSM; los scripts ya no están en el repo). Si ese método se intentó en el PC, pueden quedar MongoDB y
+Mosquitto **nativos** corriendo como servicios automáticos junto al stack Docker:
+
+```powershell
+Get-Service | Where-Object {$_.DisplayName -match "mongo|mosquitto|generador"} | Select-Object Name, DisplayName, Status, StartType
+Get-NetTCPConnection -LocalPort 1883,27017 -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess | Sort-Object LocalPort
+```
+
+Por qué importa: el Mosquitto nativo suele quedarse con el binding IPv4 `0.0.0.0:1883` (el de Docker
+queda solo en `::`), de modo que **la placa Dingtian le habla al broker nativo** aunque el sistema
+"funcione". Si tras actualizar el backend se configura contra `mqtt-broker` (Docker) con el nativo
+aún vivo, el panel se queda sin datos.
+
+Neutralización (verificada en sitio: los clientes MQTT se reconectan solos y el socket dual-stack de
+Docker absorbe las conexiones IPv4 al liberarse el puerto):
+
+1. Confirmar primero que los datos reales están en el Mongo de Docker:
+   `docker exec generador-mongodb mongosh --quiet --eval "db.getSiblingDB('generator').users.countDocuments()"`
+   (si responde sin pedir credenciales, además se confirma que Mongo corre sin auth — paso 2.1).
+2. Detener y **deshabilitar** los servicios nativos (deshabilitar es clave: con `Automatic` vuelven
+   al reiniciar y le roban el binding a Docker; no desinstalar — sus datos quedan en disco):
+
+```powershell
+Stop-Service mosquitto, MongoDB
+Set-Service mosquitto -StartupType Disabled
+Set-Service MongoDB -StartupType Disabled
+```
+
+3. Verificar que la placa sigue entregando mensajes, ahora al broker de Docker:
+
+```powershell
+docker exec generador-mqtt mosquitto_sub -t "/dingtian/#" -C 1 -W 30
+```
+
+4. Tras levantar el stack nuevo (6.3), repetir la consulta de bindings y confirmar que `0.0.0.0:1883`
+   pertenece a un proceso de Docker.
+
 ---
 
 ## Paso 2 — Respaldo de datos (obligatorio)
@@ -633,3 +706,4 @@ docker compose -f <compose-viejo> ps
 | 8 | Cookie Secure sobre `http://<IP>` | Prueba 8.4 desde otra máquina | Decisión TLS vs ENVIRONMENT |
 | 9 | Versión de Docker Desktop / Compose v2 | `docker compose version` | 1.1 |
 | 10 | Límite de RAM de WSL2 (build de 6 GB) | Docker Desktop → Resources / `.wslconfig` | 6.1 |
+| 11 | ¿Servicios nativos de MongoDB/Mosquitto corriendo? | `Get-Service` (paso 1.7) | 1.7, 8.6 |
