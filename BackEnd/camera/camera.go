@@ -113,7 +113,7 @@ func (m *Manager) upsertPath(ctx context.Context, name, source string) error {
 	_ = m.deletePath(ctx, name)
 
 	addURL := fmt.Sprintf("%s/v3/config/paths/add/%s", m.apiBase, name)
-	status, err := m.post(ctx, addURL, body)
+	status, err := m.request(ctx, http.MethodPost, addURL, body)
 	if err != nil {
 		return err
 	}
@@ -124,8 +124,10 @@ func (m *Manager) upsertPath(ctx context.Context, name, source string) error {
 }
 
 func (m *Manager) deletePath(ctx context.Context, name string) error {
+	// El endpoint de borrado de MediaMTX solo responde al método DELETE; con
+	// POST el router devuelve "404 page not found" y el path queda vivo.
 	delURL := fmt.Sprintf("%s/v3/config/paths/delete/%s", m.apiBase, name)
-	status, err := m.post(ctx, delURL, nil)
+	status, err := m.request(ctx, http.MethodDelete, delURL, nil)
 	if err != nil {
 		return err
 	}
@@ -135,8 +137,8 @@ func (m *Manager) deletePath(ctx context.Context, name string) error {
 	return nil
 }
 
-func (m *Manager) post(ctx context.Context, urlStr string, body []byte) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, bytes.NewReader(body))
+func (m *Manager) request(ctx context.Context, method, urlStr string, body []byte) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, method, urlStr, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
 	}
