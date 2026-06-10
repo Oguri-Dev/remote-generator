@@ -186,12 +186,17 @@ Editar `.env` y completar:
 - `SESSION_SECRET` y `CONFIG_ENC_KEY`: generar dos cadenas aleatorias distintas.
   En Windows con Docker: `docker run --rm alpine sh -c "head -c32 /dev/urandom | base64"`
   (ejecutar dos veces, una para cada variable).
-- `WEBRTC_HOST`: **la IP fija del servidor en la red de monitoreo**
-  (ej. `WEBRTC_HOST=10.1.1.50`). Si aún no la sabes, déjala en `localhost` y la
-  ajustas cuando el técnico confirme el segmento (ver "Ajuste remoto" abajo).
-- `FRONTEND_ORIGIN`: el origen exacto con el que los operadores abren la web
-  (ej. `FRONTEND_ORIGIN=http://10.1.1.50`). Sin esto, el WebSocket rechaza a todo
-  navegador que no sea `localhost` y el panel queda sin datos en tiempo real.
+- `WEBRTC_HOST`: **la IP estática asignada a ESTE servidor en el centro/sitio**
+  (ej. `WEBRTC_HOST=10.1.1.50`). Es la IP de la red de monitoreo que el
+  responsable del sitio le asignó a este equipo — cada centro tiene la suya, no
+  copiar la de otro sitio ni la de la guía. Comprobarla con `ipconfig` y, si el
+  adaptador sigue en DHCP, fijarla primero en Windows (Panel de control → Centro
+  de redes y recursos compartidos → adaptador → Propiedades → IPv4). Si aún no
+  está asignada, dejar `localhost` y ajustarla después (ver "Ajuste remoto").
+- `FRONTEND_ORIGIN`: el origen exacto con el que los operadores abren la web —
+  la misma IP de arriba con `http://` (ej. `FRONTEND_ORIGIN=http://10.1.1.50`).
+  Sin esto, el WebSocket rechaza a todo navegador que no sea `localhost` y el
+  panel queda sin datos en tiempo real.
 
 Además, crear el archivo `docker-compose.override.yml` junto al compose (parche
 necesario mientras el sistema sirva HTTP sin certificado: en modo `production` la
