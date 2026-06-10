@@ -48,8 +48,13 @@ servidor por la que el navegador del operador recibe el vídeo de la cámara).
      contenedores Linux; esa opción no se usa.
 
 3. **Configuración tras instalar** (Docker Desktop → Settings):
-   - **General → "Start Docker Desktop when you sign in"**: activarla. Sin esto,
-     tras un corte de luz el sistema no vuelve a levantar solo.
+   - ⚠️ **MUY IMPORTANTE — General → marcar la casilla "Start Docker Desktop when
+     you sign in to your computer"** (viene DESMARCADA de fábrica). Sin esto,
+     Docker no arranca al encender el PC: el sistema queda caído tras cualquier
+     reinicio o corte de luz, y todos los comandos `docker` fallan con el error
+     `failed to connect to the docker API at npipe:...` — que significa
+     exactamente eso: Docker Desktop no está corriendo. Solución siempre: abrir
+     Docker Desktop y esperar a que el ícono de la ballena diga "Engine running".
    - **Resources → Memory**: solo relevante si se va a **construir desde el
      código fuente** (la instalación normal descarga imágenes ya construidas y no
      necesita esto). El build del frontend requiere ~6 GB de RAM dentro de la VM
