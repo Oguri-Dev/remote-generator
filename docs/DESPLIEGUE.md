@@ -42,10 +42,12 @@ servidor por la que el navegador del operador recibe el vídeo de la cámara).
 3. **Configuración tras instalar** (Docker Desktop → Settings):
    - **General → "Start Docker Desktop when you sign in"**: activarla. Sin esto,
      tras un corte de luz el sistema no vuelve a levantar solo.
-   - **Resources → Memory**: el build del frontend necesita **~6 GB de RAM dentro
-     de la VM de Docker**. El default de WSL 2 es el 50 % de la RAM del equipo:
-     con 16 GB o más no hay que tocar nada; con 8 GB, subir el límite aquí (o en
-     `C:\Users\<usuario>\.wslconfig`) antes del primer `docker compose build`.
+   - **Resources → Memory**: solo relevante si se va a **construir desde el
+     código fuente** (la instalación normal descarga imágenes ya construidas y no
+     necesita esto). El build del frontend requiere ~6 GB de RAM dentro de la VM
+     de Docker; el default de WSL 2 es el 50 % de la RAM del equipo — con 16 GB o
+     más no hay que tocar nada, con 8 GB subir el límite aquí (o en
+     `C:\Users\<usuario>\.wslconfig`).
 
 4. Verificar que quedó operativo:
 
@@ -119,6 +121,30 @@ git -C C:\remote-generator pull
 > Al dar de baja un equipo o cambiar de manos un PC: borrar su deploy key en
 > Settings → Deploy keys y queda revocado el acceso de ese equipo.
 
+## Token para descargar las imágenes preconstruidas (GHCR)
+
+Las imágenes Docker del sistema **ya vienen construidas**: GitHub Actions las
+publica en GitHub Container Registry (`ghcr.io`) en cada actualización del
+repositorio. El PC de producción **no compila nada** — solo las descarga. Para eso
+necesita un token de solo lectura de paquetes:
+
+1. Quien administra el repo crea el token (una vez, sirve para todas las
+   instalaciones): GitHub → Settings → Developer settings → **Personal access
+   tokens (classic)** → *Generate new token (classic)* → marcar **únicamente** el
+   scope **`read:packages`** → expiración a gusto → generar y guardar el token en
+   el gestor de contraseñas del equipo de instalaciones.
+2. En el PC de producción, iniciar sesión en el registro (una sola vez; queda
+   guardado):
+
+   ```powershell
+   docker login ghcr.io
+   # Username: Oguri-Dev
+   # Password: <el token read:packages>
+   ```
+
+> Este token solo permite **descargar imágenes**. No da acceso al código, ni
+> permite modificar nada. Si se filtra, se revoca y se genera otro.
+
 ## Pasos de instalación
 
 ### 1. Copiar el proyecto al PC y crear el `.env`
@@ -138,16 +164,23 @@ Editar `.env` y completar:
 
 ### 2. Levantar todo
 
+Con el `docker login ghcr.io` ya hecho (ver sección del token):
+
 ```powershell
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-La primera vez construye las imágenes (varios minutos). Verificar que todo quede
-arriba y sano:
+`pull` descarga las imágenes ya construidas (un par de minutos según la conexión;
+no compila nada). Verificar que todo quede arriba y sano:
 
 ```powershell
 docker compose ps
 ```
+
+> Alternativa sin registro (p. ej. desarrollo, o sitio sin acceso a ghcr.io):
+> `docker compose up -d --build` construye las imágenes desde el código fuente en
+> el propio PC. Tarda varios minutos y requiere ~6 GB de RAM en la VM de Docker.
 
 ### 3. Crear el usuario inicial
 
@@ -194,6 +227,26 @@ Cuando sepas la IP definitiva del servidor en la red de monitoreo:
 
 Eso es todo. El resto del sistema ya funciona con cualquier IP por las rutas
 relativas.
+
+## Actualizar una instalación existente
+
+```powershell
+cd C:\remote-generator
+git pull               # trae compose, configs y guías actualizados (deploy key)
+docker compose pull    # descarga las imágenes nuevas (token ghcr)
+docker compose up -d   # recrea solo los servicios que cambiaron
+docker image prune -f  # opcional: libera el espacio de las imágenes viejas
+```
+
+Downtime: segundos. Antes de actualizar conviene un respaldo de la base de datos:
+
+```powershell
+docker exec generador-mongodb mongodump --db generator --archive=/tmp/backup.archive
+docker cp generador-mongodb:/tmp/backup.archive C:\respaldos\generator-$(Get-Date -Format yyyyMMdd).archive
+```
+
+> Para migrar instalaciones muy antiguas (anteriores a junio 2026), seguir
+> [ACTUALIZACION-PRODUCCION.md](ACTUALIZACION-PRODUCCION.md).
 
 ## Puertos que usa el sistema
 

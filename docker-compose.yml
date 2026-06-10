@@ -66,7 +66,9 @@ services:
     build:
       context: ./BackEnd
       dockerfile: Dockerfile
-    image: generador-backend:latest
+    # Imagen preconstruida publicada por GitHub Actions; en producción se obtiene
+    # con `docker compose pull`. El build: de arriba sigue sirviendo en desarrollo.
+    image: ghcr.io/oguri-dev/generador-backend:latest
     container_name: generador-backend
     restart: unless-stopped
     depends_on:
@@ -115,7 +117,8 @@ services:
       context: ./FrontEnd
       dockerfile: Dockerfile.production
       target: production
-    image: generador-frontend:latest
+    # Imagen preconstruida publicada por GitHub Actions (ver nota del backend).
+    image: ghcr.io/oguri-dev/generador-frontend:latest
     container_name: generador-frontend
     restart: unless-stopped
     depends_on:
