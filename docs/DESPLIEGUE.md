@@ -16,9 +16,43 @@ servidor por la que el navegador del operador recibe el vídeo de la cámara).
 
 ## Requisitos del PC de producción
 
-- Windows con **Docker Desktop** instalado y corriendo.
+- Windows con **Docker Desktop** instalado y corriendo (ver instalación abajo).
 - El PC conectado a la red de monitoreo (donde están placa `10.x` y cámara).
 - Una **IP fija** del servidor en esa red (configurarla en Windows, no DHCP).
+
+### Instalación de Docker Desktop
+
+1. **Actualizar WSL antes de instalar Docker.** Abrir una ventana de **PowerShell
+   como administrador** (clic derecho → "Ejecutar como administrador") y ejecutar:
+
+   ```powershell
+   wsl --update
+   ```
+
+   Esto instala/actualiza el motor WSL 2 sobre el que corre Docker. Si pide
+   reiniciar el PC, reiniciar antes de continuar.
+
+2. **Instalar Docker Desktop** (descarga desde docker.com). En las opciones del
+   instalador:
+   - ✅ **"Use WSL 2 instead of Hyper-V"**: marcarla. Es el backend que usa el
+     sistema (y la única opción en Windows Home, donde no existe Hyper-V).
+   - ❌ **"Allow Windows containers"**: dejarla desmarcada. Todo el stack son
+     contenedores Linux; esa opción no se usa.
+
+3. **Configuración tras instalar** (Docker Desktop → Settings):
+   - **General → "Start Docker Desktop when you sign in"**: activarla. Sin esto,
+     tras un corte de luz el sistema no vuelve a levantar solo.
+   - **Resources → Memory**: el build del frontend necesita **~6 GB de RAM dentro
+     de la VM de Docker**. El default de WSL 2 es el 50 % de la RAM del equipo:
+     con 16 GB o más no hay que tocar nada; con 8 GB, subir el límite aquí (o en
+     `C:\Users\<usuario>\.wslconfig`) antes del primer `docker compose build`.
+
+4. Verificar que quedó operativo:
+
+   ```powershell
+   docker version
+   docker compose version   # debe existir (Compose v2)
+   ```
 
 ## Qué corre solo y qué se configura en terreno
 
