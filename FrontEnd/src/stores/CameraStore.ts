@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '/@src/services/apiUser'
 
-// URL base de WebRTC/WHEP de MediaMTX accesible desde el navegador.
-// Viene de VITE_MEDIAMTX_WHEP. El path "generador" lo fija el backend
-// (camera.PathName). El endpoint WHEP es <base>/<path>/whep.
-const WHEP_BASE = (import.meta.env.VITE_MEDIAMTX_WHEP as string) || 'http://localhost:8889'
+// Endpoint WHEP de la cámara, SIEMPRE relativo al host que sirve la web.
+// nginx proxea /whep/ hacia MediaMTX, por lo que esto funciona en cualquier
+// IP/segmento sin reconstruir el frontend. El path "generador" lo fija el
+// backend (camera.PathName). Resultado: <host>/whep/generador/whep.
 const CAM_PATH = 'generador'
 
 export const useCameraStore = defineStore('camera', () => {
@@ -16,7 +16,7 @@ export const useCameraStore = defineStore('camera', () => {
   // Contador que fuerza la reconexión del reproductor (toggle = cortar/reconectar).
   const reconnectNonce = ref(0)
 
-  const whepUrl = computed(() => `${WHEP_BASE.replace(/\/$/, '')}/${CAM_PATH}/whep`)
+  const whepUrl = computed(() => `/whep/${CAM_PATH}/whep`)
 
   // Lee la config para saber si la cámara está habilitada.
   async function refreshConfigured() {

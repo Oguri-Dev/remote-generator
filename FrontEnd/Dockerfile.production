@@ -28,12 +28,10 @@ RUN pnpm jiti scripts/prepare-shiki.ts || echo "Shiki preparation skipped"
 # Copiar código fuente
 COPY . .
 
-# Build de producción con argumentos
-ARG VITE_API_BASE_URL=http://localhost:8099
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-ARG VITE_MEDIAMTX_WHEP=http://localhost:8889
-ENV VITE_MEDIAMTX_WHEP=$VITE_MEDIAMTX_WHEP
-
+# Build de producción.
+# El frontend usa rutas RELATIVAS (/api, /ws, /mqtt, /whep) proxeadas por nginx,
+# por lo que NO necesita ninguna IP/URL en build-time: la imagen es portable a
+# cualquier IP/segmento sin reconstruir.
 RUN NODE_OPTIONS=--max-old-space-size=6144 pnpm build
 
 # ===== Production Stage con Nginx =====

@@ -48,8 +48,14 @@ services:
     restart: unless-stopped
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
+    environment:
+      # ÚNICA variable que depende del segmento de red de terreno: la IP del
+      # servidor por la que el navegador del operador alcanza el vídeo WebRTC
+      # (candidatos ICE). MediaMTX permite override por env con prefijo MTX_.
+      # En terreno: poner WEBRTC_HOST=<IP del servidor> en .env y reiniciar este
+      # contenedor. NO requiere reconstruir nada.
+      MTX_WEBRTCADDITIONALHOSTS: ${WEBRTC_HOST:-localhost}
     ports:
-      - '8889:8889'      # WebRTC/WHEP (lo consume el frontend)
       - '8189:8189/udp'  # WebRTC ICE/UDP (debe coincidir con webrtcLocalUDPAddress)
       - '9997:9997'      # API de control (la usa el backend; no exponer fuera de la red en prod)
     networks:
@@ -109,15 +115,14 @@ services:
       context: ./FrontEnd
       dockerfile: Dockerfile.production
       target: production
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8099}
-        VITE_MEDIAMTX_WHEP: ${VITE_MEDIAMTX_WHEP:-http://localhost:8889}
     image: generador-frontend:latest
     container_name: generador-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
+      mediamtx:
+        condition: service_started
     ports:
       - '80:80'
     networks:
