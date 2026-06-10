@@ -158,6 +158,13 @@ necesita un token de solo lectura de paquetes:
    # Password: <el token read:packages>
    ```
 
+   > **Truco al pegar el token**: en el campo `Password` de la consola, `Ctrl+V`
+   > NO funciona (inserta caracteres basura tipo `^V`). Hay que copiar el token
+   > y pegarlo con **un clic derecho** sobre la ventana de PowerShell. No se ve
+   > nada en pantalla al pegar — es normal (la contraseña va oculta): dar Enter.
+   > Tampoco pasar el token escrito en el comando (p. ej. con `-p`): quedaría
+   > guardado en el historial de la consola.
+
 > Este token solo permite **descargar imágenes**. No da acceso al código, ni
 > permite modificar nada. Si se filtra, se revoca y se genera otro.
 
