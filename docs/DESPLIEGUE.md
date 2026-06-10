@@ -114,7 +114,7 @@ ponerle un título identificable (ej. `instalacion-cliente-X`) y **NO marcar**
 ### Clonar y actualizar
 
 ```powershell
-git clone git@github.com:<organizacion>/remote-generator.git C:\remote-generator
+git clone git@github.com:Oguri-Dev/remote-generator.git C:\remote-generator
 # actualizaciones futuras, sin login:
 git -C C:\remote-generator pull
 ```
@@ -169,6 +169,23 @@ Editar `.env` y completar:
 - `WEBRTC_HOST`: **la IP fija del servidor en la red de monitoreo**
   (ej. `WEBRTC_HOST=10.1.1.50`). Si aún no la sabes, déjala en `localhost` y la
   ajustas cuando el técnico confirme el segmento (ver "Ajuste remoto" abajo).
+- `FRONTEND_ORIGIN`: el origen exacto con el que los operadores abren la web
+  (ej. `FRONTEND_ORIGIN=http://10.1.1.50`). Sin esto, el WebSocket rechaza a todo
+  navegador que no sea `localhost` y el panel queda sin datos en tiempo real.
+
+Además, crear el archivo `docker-compose.override.yml` junto al compose (parche
+necesario mientras el sistema sirva HTTP sin certificado: en modo `production` la
+cookie de sesión se marca `Secure` y los navegadores la descartan sobre
+`http://<IP>`, rompiendo el login desde otras máquinas):
+
+```powershell
+@'
+services:
+  backend:
+    environment:
+      ENVIRONMENT: development
+'@ | Out-File C:\remote-generator\docker-compose.override.yml -Encoding ascii
+```
 
 ### 2. Levantar todo
 
