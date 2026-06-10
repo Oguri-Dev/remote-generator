@@ -70,6 +70,55 @@ servidor por la que el navegador del operador recibe el vídeo de la cámara).
 > apuntarla a `<IP-del-servidor>:1883`. El broker acepta conexiones anónimas
 > (sin usuario/contraseña), así que en la placa basta con la IP y el puerto.
 
+## Obtener el proyecto sin cuenta personal (deploy key)
+
+El repositorio es privado, pero **no hay que iniciar sesión con una cuenta personal
+en el PC del cliente**. Lo correcto es una *deploy key*: una clave SSH de solo
+lectura que pertenece al repositorio (no a una persona) y permite clonar y hacer
+`git pull` indefinidamente.
+
+### En el PC de instalación (una sola vez)
+
+```powershell
+# 1. Generar el par de claves (Enter a todo; sin passphrase)
+ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\generador_deploy
+
+# 2. Mostrar la clave PUBLICA (esta es la que se registra en GitHub)
+Get-Content $env:USERPROFILE\.ssh\generador_deploy.pub
+```
+
+Crear (o editar) el archivo `C:\Users\<usuario>\.ssh\config` con:
+
+```
+Host github.com
+  IdentityFile ~/.ssh/generador_deploy
+  IdentitiesOnly yes
+```
+
+### En GitHub (lo hace quien administra el repo)
+
+Repo → **Settings** → **Deploy keys** → **Add deploy key**: pegar la clave pública,
+ponerle un título identificable (ej. `instalacion-cliente-X`) y **NO marcar**
+"Allow write access" (solo lectura).
+
+### Clonar y actualizar
+
+```powershell
+git clone git@github.com:<organizacion>/remote-generator.git C:\remote-generator
+# actualizaciones futuras, sin login:
+git -C C:\remote-generator pull
+```
+
+> Alternativa sin SSH: un *fine-grained personal access token* de **solo lectura**
+> limitado a este repo (GitHub → Settings → Developer settings → Fine-grained
+> tokens; Repository access: solo este repo; Permissions → Contents: Read-only).
+> Se usa como contraseña en el primer `git clone` por HTTPS y queda guardado en el
+> Administrador de credenciales de Windows. Expira (máximo 1 año) y hay que
+> renovarlo; la deploy key no.
+
+> Al dar de baja un equipo o cambiar de manos un PC: borrar su deploy key en
+> Settings → Deploy keys y queda revocado el acceso de ese equipo.
+
 ## Pasos de instalación
 
 ### 1. Copiar el proyecto al PC y crear el `.env`
