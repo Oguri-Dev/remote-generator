@@ -111,13 +111,21 @@ Repo → **Settings** → **Deploy keys** → **Add deploy key**: pegar la clave
 ponerle un título identificable (ej. `instalacion-cliente-X`) y **NO marcar**
 "Allow write access" (solo lectura).
 
-### Clonar y actualizar
+### Clonar y actualizar (clon parcial: sin código fuente)
+
+Como las imágenes vienen preconstruidas, el PC de producción **no necesita el
+código fuente**. El clon parcial descarga solo lo necesario (compose,
+configuraciones y guías; `BackEnd/` y `FrontEnd/` ni se descargan):
 
 ```powershell
-git clone git@github.com:Oguri-Dev/remote-generator.git C:\remote-generator
+git clone --filter=blob:none --sparse git@github.com:Oguri-Dev/remote-generator.git C:\remote-generator
+git -C C:\remote-generator sparse-checkout set docs
 # actualizaciones futuras, sin login:
 git -C C:\remote-generator pull
 ```
+
+> Para desarrollo (o si se quiere construir localmente) se usa el clon completo:
+> `git clone git@github.com:Oguri-Dev/remote-generator.git`.
 
 > Alternativa sin SSH: un *fine-grained personal access token* de **solo lectura**
 > limitado a este repo (GitHub → Settings → Developer settings → Fine-grained
