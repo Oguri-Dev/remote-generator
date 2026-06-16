@@ -102,6 +102,12 @@ ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\generador_deploy
 Get-Content $env:USERPROFILE\.ssh\generador_deploy.pub
 ```
 
+El comando 2 imprime una línea que empieza con `ssh-ed25519 AAAA...` — **esa línea
+completa es la "clave pública"** que se pega en GitHub en el paso siguiente.
+Copiarla entera (seleccionar y copiar desde la consola). El archivo `.pub` es
+público y se puede compartir; el otro archivo (`generador_deploy`, sin `.pub`) es
+la clave PRIVADA y **nunca sale de este PC**.
+
 Ahora hay que **crear un archivo** llamado `config` (sin extensión) dentro de la
 carpeta `.ssh` del usuario (`C:\Users\<usuario>\.ssh\config`). Ese archivo le
 indica a Git qué clave usar para conectarse a GitHub.
@@ -132,9 +138,13 @@ Get-Content $env:USERPROFILE\.ssh\config
 
 ### En GitHub (lo hace quien administra el repo)
 
-Repo → **Settings** → **Deploy keys** → **Add deploy key**: pegar la clave pública,
-ponerle un título identificable (ej. `instalacion-cliente-X`) y **NO marcar**
-"Allow write access" (solo lectura).
+Repo → **Settings** → **Deploy keys** → **Add deploy key**:
+
+- **Title**: un nombre identificable del equipo (ej. `instalacion-cliente-X`).
+- **Key**: pegar aquí la línea `ssh-ed25519 AAAA...` que imprimió el **comando 2**
+  de arriba (la clave pública).
+- **NO marcar** "Allow write access" (la dejamos de solo lectura).
+- *Add key*.
 
 ### Clonar y actualizar (clon parcial: sin código fuente)
 
