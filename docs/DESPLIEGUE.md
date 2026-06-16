@@ -102,12 +102,18 @@ ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\generador_deploy
 Get-Content $env:USERPROFILE\.ssh\generador_deploy.pub
 ```
 
-Crear el archivo `C:\Users\<usuario>\.ssh\config` que le indica a Git qué clave
-usar. **Pegar este comando completo en PowerShell** (NO escribir las líneas
+Ahora hay que **crear un archivo** llamado `config` (sin extensión) dentro de la
+carpeta `.ssh` del usuario (`C:\Users\<usuario>\.ssh\config`). Ese archivo le
+indica a Git qué clave usar para conectarse a GitHub.
+
+**Pegar este comando completo en PowerShell.** Crea la carpeta `.ssh` si no existe
+y escribe el archivo con su contenido en un solo paso. (NO escribir las líneas
 `Host`/`IdentityFile`/... sueltas en la consola: son el contenido del archivo, no
-comandos — PowerShell intentaría ejecutarlas y daría error):
+comandos — PowerShell intentaría ejecutarlas y daría error tipo
+`Get-Host: no se encuentra parámetro`.)
 
 ```powershell
+New-Item -ItemType Directory -Force $env:USERPROFILE\.ssh | Out-Null
 @'
 Host github.com
   IdentityFile ~/.ssh/generador_deploy
@@ -115,7 +121,10 @@ Host github.com
 '@ | Out-File $env:USERPROFILE\.ssh\config -Encoding ascii
 ```
 
-Verificar que quedó bien (debe mostrar las tres líneas):
+> `$env:USERPROFILE` se expande solo a `C:\Users\<usuario>`, así que el comando
+> funciona igual en cualquier PC sin escribir el nombre de usuario a mano.
+
+Verificar que el archivo quedó bien (debe mostrar las tres líneas):
 
 ```powershell
 Get-Content $env:USERPROFILE\.ssh\config
