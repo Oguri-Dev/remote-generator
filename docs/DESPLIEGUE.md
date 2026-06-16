@@ -102,12 +102,23 @@ ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\generador_deploy
 Get-Content $env:USERPROFILE\.ssh\generador_deploy.pub
 ```
 
-Crear (o editar) el archivo `C:\Users\<usuario>\.ssh\config` con:
+Crear el archivo `C:\Users\<usuario>\.ssh\config` que le indica a Git qué clave
+usar. **Pegar este comando completo en PowerShell** (NO escribir las líneas
+`Host`/`IdentityFile`/... sueltas en la consola: son el contenido del archivo, no
+comandos — PowerShell intentaría ejecutarlas y daría error):
 
-```
+```powershell
+@'
 Host github.com
   IdentityFile ~/.ssh/generador_deploy
   IdentitiesOnly yes
+'@ | Out-File $env:USERPROFILE\.ssh\config -Encoding ascii
+```
+
+Verificar que quedó bien (debe mostrar las tres líneas):
+
+```powershell
+Get-Content $env:USERPROFILE\.ssh\config
 ```
 
 ### En GitHub (lo hace quien administra el repo)
